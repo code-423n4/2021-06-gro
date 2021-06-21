@@ -5,10 +5,9 @@ pragma experimental ABIEncoderV2;
 import "../common/StructDefinitions.sol";
 
 interface IExposure {
-    function calcRiskExposure(SystemState calldata sysState)
-        external
-        view
-        returns (ExposureState memory expState);
+    function calcRiskExposure(SystemState calldata sysState) external view returns (ExposureState memory expState);
+
+    function getExactRiskExposure(SystemState calldata sysState) external view returns (ExposureState memory expState);
 
     function getUnifiedAssets(address[3] calldata vaults)
         external

@@ -32,10 +32,7 @@ contract Controllable is Ownable {
         return _pausable().paused();
     }
 
-    function setController(address newController)
-        external
-        onlyOwner
-    {
+    function setController(address newController) external onlyOwner {
         require(newController != address(0), "setController: !0x");
         address oldController = controller;
         controller = newController;

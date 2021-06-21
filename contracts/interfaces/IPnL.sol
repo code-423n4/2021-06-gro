@@ -4,15 +4,9 @@ pragma solidity >=0.6.0 <0.7.0;
 interface IPnL {
     function calcPnL() external view returns (uint256, uint256);
 
-    function pnlTrigger() external view returns (bool);
-
-    function execPnL(uint256 deductedAssets) external;
-
     function increaseGTokenLastAmount(address gTokenAddress, uint256 dollarAmount) external;
 
     function decreaseGTokenLastAmount(address gTokenAddress, uint256 dollarAmount) external;
-
-    function increaseWithdrawalBonus(uint256 newBonus) external;
 
     function lastGvtAssets() external view returns (uint256);
 
@@ -23,4 +17,10 @@ interface IPnL {
     function emergencyPnL() external;
 
     function recover() external;
+
+    function distributeStrategyGainLoss(uint256 gain, uint256 loss) external;
+
+    function distributeHodlerBonus(uint256 bonus) external;
+
+    function distributePriceChange(uint256 currentTotalAssets) external;
 }

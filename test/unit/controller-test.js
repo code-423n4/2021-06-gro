@@ -96,6 +96,23 @@ contract('Controller Test', function (accounts) {
         });
     });
 
+    describe.skip('Utility', function () {
+        it('Should return underlying stablecoins', async function () {
+        });
+        it('Should return skim percent', async function () {
+        });
+        it('Should be possible to set a new safe address (non EoA block)', async function () {
+        });
+        it('Should be possible to switch on the non eoa block', async function () {
+        });
+        it('Should be possible to set a new rewards address', async function () {
+        });
+        it('Should be possible to get pwrd/gvt from the controller', async function () {
+        });
+        it('Should be possible to block Non eoa interactions', async function () {
+        });
+    });
+
     describe('totalAssets', function () {
         it('Should ok initially', async function () {
             return expect(controller.totalAssets()).to.eventually.be.a.bignumber.equal(new BN(0));

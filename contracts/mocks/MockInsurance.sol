@@ -36,7 +36,7 @@ contract MockInsurance is IInsurance {
         underlyingTokensPercents[2] = 4000;
     }
 
-    function rebalanceForWithdraw(uint256 withdrawUsd, bool pwrd) external override {}
+    function rebalanceForWithdraw(uint256 withdrawUsd, bool pwrd) external override returns (bool) {}
 
     function setVaultDeltaIndex(uint256 _vaultDeltaIndex) external {
         require(_vaultDeltaIndex < 3, "invalid index");

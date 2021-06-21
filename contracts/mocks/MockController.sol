@@ -263,13 +263,13 @@ contract MockController is
                 uint256 amount = buoy.singleStableFromLp(lpPart, int128(i));
                 IVault vault = IVault(underlyingVaults[i]);
                 vault.withdrawByStrategyOrder(amount, lifeGuard, pwrd_);
-                (dollarAmount, ) = lg.withdrawSingleCoin(index, 1, msg.sender);
+                (dollarAmount, ) = lg.withdrawSingleByExchange(index, 1, msg.sender);
             }
         } else {
             IVault vault = IVault(underlyingVaults[vaultOrder[0]]);
             uint256 amount = buoy.singleStableFromLp(lpAmount, int128(vaultOrder[0]));
             vault.withdrawByStrategyOrder(amount, lifeGuard, pwrd_);
-            (dollarAmount, ) = lg.withdrawSingleCoin(index, 1, msg.sender);
+            (dollarAmount, ) = lg.withdrawSingleByExchange(index, 1, msg.sender);
         }
         IToken dt;
         if (pwrd_) {
@@ -364,10 +364,6 @@ contract MockController is
         IPnL(pnl).decreaseGTokenLastAmount(gTokenAddress, dollarAmount);
     }
 
-    function execPnL(uint256 deductedAssets) external returns (uint256) {
-        IPnL(pnl).execPnL(deductedAssets);
-    }
-
     function setGVT(address token) external {
         gvt = token;
     }
@@ -417,4 +413,18 @@ contract MockController is
     function restart(uint256[] calldata allocations) external {}
 
     function utilisationRatioLimitGvt() external override returns (uint256) {}
+
+    function distributeHodlerBonus(uint256 bonus) external override {
+        IPnL(pnl).distributeHodlerBonus(bonus);
+    }
+
+    function validHandler(address handler) external view override returns (bool) {}
+
+    function distributeStrategyGainLoss(uint256 gain, uint256 loss) external override {
+        IPnL(pnl).distributeStrategyGainLoss(gain, loss);
+    }
+
+    function distributePriceChange() external {
+        IPnL(pnl).distributePriceChange(totalAssets);
+    }
 }

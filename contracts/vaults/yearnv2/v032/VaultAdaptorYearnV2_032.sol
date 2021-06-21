@@ -19,7 +19,7 @@ import "../../BaseVaultAdaptor.sol";
 ///             will always try to maintain a set amount of loose assets to make withdrawals cheaper.
 ///             The underlying yearn vault on the other hand will always have a total debt ratio of
 ///             100%, meaning that it will atempt to always have all its assets invested in the
-///             underlying strategies. 
+///             underlying strategies.
 ///         - Asset availability:
 ///             - VaultAdaptor:
 ///                 - vaultReserve (%BP - see BaseVaultAdaptor)
@@ -31,7 +31,7 @@ import "../../BaseVaultAdaptor.sol";
 contract VaultAdaptorYearnV2_032 is BaseVaultAdaptor {
     constructor(address _vault, address _token) public BaseVaultAdaptor(_vault, _token) {}
 
-    /// @notice Withdraw from vault adaptor, if withdrawal amount exceeds adaptors 
+    /// @notice Withdraw from vault adaptor, if withdrawal amount exceeds adaptors
     ///     total available assets, withdraw from underlying vault, using a specific
     ///     strategy order for withdrawal -> the withdrawal order dictates which strategy
     ///     to withdraw from first, if this strategies assets are exhausted before the

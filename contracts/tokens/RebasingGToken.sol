@@ -21,10 +21,7 @@ contract RebasingGToken is GToken {
 
     event LogTransfer(address indexed sender, address indexed recipient, uint256 indexed amount);
 
-    constructor(
-        string memory name,
-        string memory symbol
-    ) public GToken(name, symbol) {}
+    constructor(string memory name, string memory symbol) public GToken(name, symbol) {}
 
     /// @notice TotalSupply override - the totalsupply of the Rebasing token is
     ///     calculated by dividing the totalSupplyBase (standard ERC20 totalSupply)

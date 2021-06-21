@@ -6,7 +6,6 @@ const MockUSDT = artifacts.require('MockUSDT');
 const MockVaultAdaptor = artifacts.require('MockVaultAdaptor');
 const CurvePool = artifacts.require('StableSwap3Pool');
 const MockLPT = artifacts.require('CurveTokenV2');
-const ChainLinkOracle = artifacts.require('ChainPrice');
 const MockAggregatorC = artifacts.require('MockAggregator');
 const Buoy = artifacts.require('Buoy3Pool');
 const LifeGuard = artifacts.require('LifeGuard3Pool');
@@ -17,9 +16,6 @@ const truffleAssert = require('truffle-assertions');
 const timeMachine = require('ganache-time-traveler');
 
 contract('lifeguard test', function (accounts) {
-	//curve
-	const curvePrices = ['1003298964453631748', '1005684', '1006114'];
-	const multiplier = ['1', '1000000000000', '1000000000000'];
 	//chain
 	const chainlinkPrices = ['2245940000000000', '2218500000000000', '2208500000000000'];
 	const decimals = ['1000000000000000000', '1000000', '1000000'];
@@ -44,7 +40,6 @@ contract('lifeguard test', function (accounts) {
 		lifeGuard,
 		buoy,
 		//chainlink
-		chainLink,
 		mockController,
 		//3rd party
 		buffer,
@@ -81,22 +76,6 @@ contract('lifeguard test', function (accounts) {
 		usdcEthAgg = await MockAggregatorC.new(chainlinkPrices[1]);
 		usdtEthAgg = await MockAggregatorC.new(chainlinkPrices[2]);
 
-		chainLinkOracle = await ChainLinkOracle.new();
-		await chainLinkOracle.setTokens(tokens, { from: governance });
-		await chainLinkOracle.addToWhitelist(governance, { from: governance });
-
-		await chainLinkOracle.addAggregators(0, daiEthAgg.address, { from: governance });
-		await chainLinkOracle.addAggregators(1, usdcEthAgg.address, { from: governance });
-		await chainLinkOracle.addAggregators(2, usdtEthAgg.address, { from: governance });
-
-		await chainLinkOracle.setLimit(5, { from: governance });
-		await chainLinkOracle.updatePriceFeed(mockDAI.address, { from: governance });
-		await chainLinkOracle.updatePriceFeed(mockUSDC.address, { from: governance });
-		await chainLinkOracle.updatePriceFeed(mockUSDT.address, { from: governance });
-		await chainLinkOracle.updateTokenRatios(mockDAI.address, { from: governance });
-		await chainLinkOracle.updateTokenRatios(mockUSDC.address, { from: governance });
-		await chainLinkOracle.updateTokenRatios(mockUSDT.address, { from: governance });
-
 		//set up 3pool
 		const _owner = accounts[0];
 		const _pool_token = mockLPT.address;
@@ -128,7 +107,13 @@ contract('lifeguard test', function (accounts) {
 		});
 
 		//set up buoy
-		buoy = await Buoy.new(curve3Pool.address, mockLPT.address, chainLinkOracle.address, tokens, decimals);
+		buoy = await Buoy.new(
+            curve3Pool.address,
+            mockLPT.address,
+            tokens,
+            decimals,
+            [daiEthAgg.address, usdcEthAgg.address, usdtEthAgg.address]
+        );
 
 		await buoy.addToWhitelist(governance, { from: governance });
 		await buoy.setBasisPointsLmit('1000');
@@ -164,7 +149,6 @@ contract('lifeguard test', function (accounts) {
 		await lifeGuard.approveVaults(1);
 		await lifeGuard.approveVaults(2);
 		await lifeGuard.approveVaults(3);
-		await lifeGuard.setHealthCheck(true);
 
 		snapshotId = (await timeMachine.takeSnapshot())['result'];
 	});
@@ -174,10 +158,6 @@ contract('lifeguard test', function (accounts) {
 	});
 
 	describe('Buoy floats', function () {
-		it('Should be possible to check the token ratios', async function () {
-			return expect(buoy.ratioCheck(0, 1)).to.be.fulfilled;
-		});
-
 		it('Should be possible to set a new basis point limit for the safety check', async function () {
 			await expect(buoy.setBasisPointsLmit('200')).to.be.fulfilled;
 			return expect(buoy.BASIS_POINTS()).to.eventually.be.a.bignumber.equal(new BN('200'));
@@ -187,8 +167,12 @@ contract('lifeguard test', function (accounts) {
 			return expect(buoy.safetyCheck()).to.be.fulfilled;
 		});
 
-		it('Should return false if the safety check runs within given paramaters', async function () {
-			await buoy.setBasisPointsLmit('10');
+		it('Should be possibe to update cached token ratios', async function () {
+			return expect(buoy.updateRatios()).to.be.fulfilled;
+		});
+
+		it('Should return false if the safety check runs outside given paramaters', async function () {
+			await buoy.setBasisPointsLmit('1');
 			return expect(buoy.safetyCheck()).to.eventually.be.false;
 		});
 
@@ -252,10 +236,6 @@ contract('lifeguard test', function (accounts) {
 			);
 		});
 
-		it('Should be possible to get the chainlink rations of two tokens', async function () {
-			return expect(chainLinkOracle.getRatio(0, 1, { from: governance })).to.be.fulfilled;
-		});
-
 		it('Should get correct amount of USD from a single asset', async function () {
 			return expect(buoy.usdToLp('1000000000000000000000')).to.eventually.be.a.bignumber.closeTo(
 				'1000000000000000000000',
@@ -286,7 +266,6 @@ contract('lifeguard test', function (accounts) {
 				})
 			).to.be.fulfilled;
 
-			// console.log('vault balance: ' + (await mockDAI.balanceOf(mockDAIVault.address)));
 			await mockController.setWhale(true);
 			const expectedDai = await mockDAI.balanceOf(mockDAIVault.address);
 			await expect(buoy.lpToUsd(new BN('7').mul(baseNum))).to.eventually.be.a.bignumber.closeTo(
@@ -569,9 +548,6 @@ contract('lifeguard test', function (accounts) {
 		});
 
 		it('Should be possible to trigger the health check on and off', async function () {
-			await expect(lifeGuard.healthCheck()).to.eventually.be.true;
-			await lifeGuard.setHealthCheck(false);
-			return expect(lifeGuard.healthCheck()).to.eventually.be.false;
 		});
 
 		it('Should be possible to invest to the curve vault', async function () {
@@ -584,12 +560,8 @@ contract('lifeguard test', function (accounts) {
 		it('Should be possible to distribute lifeguard assets to stablecoin vaults', async function () {
 			await lifeGuard.setInvestToCurveThreshold(20);
 			const assetsPre = await mockLPT.balanceOf(mockCurveVault.address);
-			// console.log('-----------1');
 			await expect(lifeGuard.investToCurveVault()).to.be.fulfilled;
-			// console.log('-----------2');
 			const assetsPost = await mockLPT.balanceOf(mockCurveVault.address);
-			// console.log(assetsPre.toString());
-			// console.log(assetsPost.toString());
 			const preDai = await mockDAI.balanceOf(mockDAIVault.address);
 			await expect(lifeGuard.distributeCurveVault(assetsPost, [5000, 2500, 2500])).to.be.fulfilled;
 			return expect(
@@ -619,14 +591,6 @@ contract('lifeguard test', function (accounts) {
 				toBN(30).mul(daiBaseNum),
 				daiBaseNum
 			);
-		});
-
-		it('Should be possible to get a ratio back from the emergency withdrawal function', async function () {
-			const daiBaseNum = new BN(10).pow(await mockDAI.decimals());
-			const res = await lifeGuard.getEmergencyPrice(0);
-			await expect(lifeGuard.getEmergencyPrice(0)).to.eventually.be.fulfilled;
-			await expect(res[0]).to.be.a.bignumber.most(daiBaseNum);
-			return await expect(res[1]).to.be.a.bignumber.equal(daiBaseNum);
 		});
 
 		it('Should be possible to invest all lg assets', async function () {
@@ -671,4 +635,49 @@ contract('lifeguard test', function (accounts) {
 			);
 		});
 	});
+
+	describe('Manipulate curve', function () {
+		it('Should be possible to deposit for rebalance', async function () {
+            const origDaiUsdc = await curve3Pool.get_dy(0, 1, '1000000000000000000')
+            const origDaiUsdt = await curve3Pool.get_dy(0, 2, '1000000000000000000')
+			const daiBaseNum = new BN(10).pow(await mockDAI.decimals());
+			let investAmount = [
+				toBN(10000).mul(daiBaseNum),
+				toBN(0),
+				toBN(0),
+			];
+			await mockDAI.transfer(lifeGuard.address, investAmount[0], { from: user });
+			await lifeGuard.deposit({ from: governance });
+			let trx = await expect(lifeGuard.invest(0, [2000, 4000, 4000])).to.eventually.be.fulfilled;
+			let tx = await web3.eth.getTransactionReceipt(trx.tx);
+			let invest = await decodeLogs(tx.logs, LifeGuard, lifeGuard.address, 'LogNewInvest');
+            // console.log(invest[0].args[0])
+            // console.log(invest[0].args[3])
+            // console.log(JSON.stringify(invest))
+
+            daiAmount = new BN('504873231441236551059274931');
+            await mockDAI.mint(accounts[0], daiAmount);
+            await mockDAI.approve(curve3Pool.address, daiAmount);
+
+            await curve3Pool.add_liquidity(investAmount, 0, {
+                from: accounts[0],
+                gas: '6721975',
+                allow_revert: true,
+            });
+
+			await mockDAI.transfer(lifeGuard.address, investAmount[0], { from: user });
+			await lifeGuard.deposit({ from: governance });
+            const finDaiUsdc = await curve3Pool.get_dy(0, 1, '1000000000000000000')
+            const finDaiUsdt = await curve3Pool.get_dy(0, 2, '1000000000000000000')
+
+			trx = await expect(lifeGuard.invest(0, [2000, 4000, 4000])).to.eventually.be.fulfilled;
+			tx = await web3.eth.getTransactionReceipt(trx.tx);
+			invest = await decodeLogs(tx.logs, LifeGuard, lifeGuard.address, 'LogNewInvest');
+            // console.log(invest[0].args[0])
+            // console.log(invest[0].args[3])
+            // console.log(JSON.stringify(invest))
+            // console.log(origDaiUsdc.toString(), finDaiUsdc.toString())
+            // console.log(origDaiUsdt.toString(), finDaiUsdt.toString())
+		});
+    })
 });

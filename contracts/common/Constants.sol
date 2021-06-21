@@ -9,4 +9,6 @@ contract Constants {
     uint256 public constant CHAINLINK_PRICE_DECIMAL_FACTOR = uint256(10)**CHAINLINK_PRICE_DECIMALS;
     uint8 public constant PERCENTAGE_DECIMALS = 4;
     uint256 public constant PERCENTAGE_DECIMAL_FACTOR = uint256(10)**PERCENTAGE_DECIMALS;
+    uint256 public constant CURVE_RATIO_DECIMALS = 6;
+    uint256 public constant CURVE_RATIO_DECIMALS_FACTOR = uint256(10)**CURVE_RATIO_DECIMALS;
 }

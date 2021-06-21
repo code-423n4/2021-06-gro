@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: AGPLv3
 pragma solidity >=0.6.0 <0.7.0;
 
+import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+
 import {FixedStablecoins, FixedGTokens, FixedVaults} from "./common/FixedContracts.sol";
 import "./common/Controllable.sol";
-import "./interfaces/ILifeGuard.sol";
+
 import "./interfaces/IBuoy.sol";
 import "./interfaces/IDepositHandler.sol";
-import "./interfaces/IToken.sol";
-import "./interfaces/IPnL.sol";
-import "./interfaces/IInsurance.sol";
-import "./interfaces/IVault.sol";
 import "./interfaces/IERC20Detailed.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import "./interfaces/IInsurance.sol";
+import "./interfaces/ILifeGuard.sol";
+import "./interfaces/IPnL.sol";
+import "./interfaces/IToken.sol";
+import "./interfaces/IVault.sol";
 
 /// @notice Entry point for deposits into Gro protocol - User deposits can be done with one or
 ///     multiple assets, being more expensive gas wise for each additional asset that is deposited.
@@ -27,13 +29,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 ///
 ///     Tuna and Whale deposits will go through the lifeguard, which in turn will perform all
 ///     necessary asset swaps.
-contract DepositHandler is
-    Controllable,
-    FixedStablecoins,
-    FixedGTokens,
-    FixedVaults,
-    IDepositHandler
-{
+contract DepositHandler is Controllable, FixedStablecoins, FixedGTokens, FixedVaults, IDepositHandler {
     uint256 public utilisationRatioLimitPwrd;
     IController ctrl;
     ILifeGuard lg;
@@ -49,12 +45,7 @@ contract DepositHandler is
 
     event LogNewUtilLimit(bool indexed pwrd, uint256 limit);
     event LogNewFeeToken(address indexed token, uint256 index);
-    event LogNewDependencies(
-        address controller,
-        address lifeguard,
-        address buoy,
-        address insurance
-    );
+    event LogNewDependencies(address controller, address lifeguard, address buoy, address insurance);
     event LogNewDeposit(
         address indexed user,
         address indexed referral,
@@ -138,6 +129,7 @@ contract DepositHandler is
     ) private {
         ctrl.eoaOnly(msg.sender);
         require(minAmount > 0, "minAmount is 0");
+        require(buoy.safetyCheck(), "!safetyCheck");
         if (_referral != address(0) && referral[msg.sender] == address(0)) {
             referral[msg.sender] = _referral;
         }
@@ -195,7 +187,7 @@ contract DepositHandler is
                     }
                 }
             }
-            (dollarAmount, factor) = _invest(pwrd, inAmounts, roughUsd);
+            (dollarAmount, factor) = _invest(inAmounts, roughUsd);
         } else {
             // If sardine, send the assets directly to the vault adapter
             for (uint256 i = 0; i < N_COINS; i++) {
@@ -211,8 +203,6 @@ contract DepositHandler is
                     } else {
                         token.safeTransferFrom(msg.sender, _vault, inAmounts[i]);
                     }
-                    // Update vaultadaptor assets
-                    IVault(_vault).updatePnL(inAmounts[i]);
                 }
             }
             // Establish USD vault of deposit
@@ -229,44 +219,32 @@ contract DepositHandler is
     ///     Whale - Deposits all assets into the lifeguard Curve pool, and withdraws
     ///         them in target allocation (insurance underlyingTokensPercents) amounts before
     ///        investing them into all vaults
-    /// @param pwrd Pwrd or gvt
     /// @param _inAmounts Input token amounts
     /// @param roughUsd Estimated rough USD value of deposit
     function _invest(
-        bool pwrd,
         uint256[N_COINS] memory _inAmounts,
         uint256 roughUsd
     ) internal returns (uint256 dollarAmount, uint256 factor) {
         // Calculate asset distribution - for large deposits, we will want to spread the
         // assets across all stablecoin vaults to avoid overexposure, otherwise we only
         // ensure that the deposit doesn't target the most overexposed vault
-        (, uint256[N_COINS] memory vaultIndexes, uint256 _vaults) =
-            insurance.getVaultDeltaForDeposit(roughUsd);
+        (, uint256[N_COINS] memory vaultIndexes, uint256 _vaults) = insurance.getVaultDeltaForDeposit(roughUsd);
         if (_vaults < N_COINS) {
             dollarAmount = lg.investSingle(_inAmounts, vaultIndexes[0], vaultIndexes[1]);
         } else {
             uint256 outAmount = lg.deposit();
             uint256[N_COINS] memory delta = insurance.calculateDepositDeltasOnAllVaults();
             dollarAmount = lg.invest(outAmount, delta);
-            if (pnl.pnlTrigger()) {
-                // Deposited assets is in lifeguard now and accounted into system total assets
-                // Should remove this deposited assets to handle PnL, otherwise will distribute it between gvt and pwrd
-                pnl.execPnL(dollarAmount);
-                // GToken total assets is incorrect here because system total assets includes this deposited assets
-                // Re-calculate factor based on PnL result instead of GToken total assets
-                factor = gTokens(pwrd).factor();
-            }
         }
     }
 
     /// @notice Check if it's OK to mint the specified amount of tokens, this affects
     ///     pwrds, as they have an upper bound set by the amount of gvt
-    /// @param amount Amount of token to burn
+    /// @param amount Amount of token to mint
     function validGTokenIncrease(uint256 amount) private view returns (bool) {
         return
-            gTokens(false).totalAssets().mul(utilisationRatioLimitPwrd).div(
-                PERCENTAGE_DECIMAL_FACTOR
-            ) >= amount.add(gTokens(true).totalAssets());
+            gTokens(false).totalAssets().mul(utilisationRatioLimitPwrd).div(PERCENTAGE_DECIMAL_FACTOR) >=
+            amount.add(gTokens(true).totalAssets());
     }
 
     /// @notice Give a USD estimate of the deposit - this is purely used to determine deposit size

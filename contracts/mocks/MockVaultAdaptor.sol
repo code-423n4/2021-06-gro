@@ -97,7 +97,7 @@ contract MockVaultAdaptor is IVault, Constants {
         return (harvestQueue, expectedDebtLimits);
     }
 
-    function strategyHarvest(uint256 _index, uint256 _callCost) external override returns (bool) {}
+    function strategyHarvest(uint256 _index) external override returns (bool) {}
 
     function strategyHarvestTrigger(uint256 _index, uint256 _callCost)
         external
@@ -110,8 +110,6 @@ contract MockVaultAdaptor is IVault, Constants {
         underlyingToken.transferFrom(msg.sender, address(this), _amount);
         // token.transfer(vault, _amount);
     }
-
-    function updatePnL(uint256 amount) external override {}
 
     function withdraw(uint256 _amount) external override {
         underlyingToken.transfer(msg.sender, _amount);
@@ -175,12 +173,6 @@ contract MockVaultAdaptor is IVault, Constants {
     function setLoss(uint256 _loss) external {
         loss = _loss;
     }
-
-    function calcPnL() external view override returns (uint256, uint256) {
-        return (gain, loss);
-    }
-
-    function execPnL() external override {}
 
     function getStrategyAssets(uint256 index) external view override returns (uint256) {
         return strategyEstimatedAssets[index];

@@ -29,10 +29,7 @@ abstract contract GToken is GERC20, Constants, Whitelist, IToken {
 
     IController public ctrl;
 
-    constructor(string memory name, string memory symbol)
-        public
-        GERC20(name, symbol, DEFAULT_DECIMALS)
-    {}
+    constructor(string memory name, string memory symbol) public GERC20(name, symbol, DEFAULT_DECIMALS) {}
 
     function setController(address controller) external onlyOwner {
         ctrl = IController(controller);

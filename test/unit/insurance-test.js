@@ -134,22 +134,17 @@ contract('Insurance Test', function (accounts) {
     describe('Insurance', function () {
         it('get Delta', async () => {
             const result = await insurance.getDelta(toBN(10000).mul(baseNum));
-            // console.log('result: ' + result);
             return expect(result.toString()).equal('2200,4800,3000');
         })
 
         it('calculateDepositDeltasOnAllVaults', async () => {
             const result = await insurance.calculateDepositDeltasOnAllVaults();
-            // console.log('result: ' + result);
             return expect(result.toString()).equal('3900,2600,3500');
         })
 
         it('getVaultDeltaForDeposit return 1', async () => {
             await insurance.setWhaleThresholdDeposit(1000);
             const result = await insurance.getVaultDeltaForDeposit(toBN(1000).mul(baseNum));
-            console.log('result[0]: ' + result[0]);
-            console.log('result[1]: ' + result[1]);
-            console.log('result[2]: ' + result[2]);
             expect(result[0].toString()).equal('10000,0,0');
             expect(result[1].toString()).equal('0,2,1');
             return expect(result[2]).to.be.a.bignumber.equal(toBN(1));
@@ -157,9 +152,6 @@ contract('Insurance Test', function (accounts) {
 
         it('getVaultDeltaForDeposit return 3', async () => {
             const result = await insurance.getVaultDeltaForDeposit(toBN(1000).mul(baseNum));
-            console.log('result[0]: ' + result[0]);
-            console.log('result[1]: ' + result[1]);
-            console.log('result[2]: ' + result[2]);
             expect(result[0].toString()).equal('0,0,0');
             expect(result[1].toString()).equal('0,0,0');
             return expect(result[2]).to.be.a.bignumber.equal(toBN(3));
@@ -173,7 +165,6 @@ contract('Insurance Test', function (accounts) {
 
             it('Should trigger rebalance when exposure is above threshold', async function () {
                 const result = await insurance.rebalanceTrigger();
-                // console.log("result: " + JSON.stringify(result));
                 return expect(result).to.be.equal(true);
             });
 
@@ -181,7 +172,6 @@ contract('Insurance Test', function (accounts) {
                 await mockPnl.setLastGvtAssets(new BN(20000).mul(baseNum));
                 await mockPnl.setLastPwrdAssets(new BN(13000).mul(baseNum));
                 const result = await insurance.rebalanceTrigger();
-                // console.log("result: " + JSON.stringify(result));
                 return expect(result).to.be.equal(false);
             });
         });
@@ -189,7 +179,6 @@ contract('Insurance Test', function (accounts) {
         describe('calcSkim', function () {
             it('return curveVaultPercent when totalAssets is 0', async () => {
                 await insurance.setCurveVaultPercent(1500);
-                // console.log('calcSkim: ' + await insurance.calcSkim());
                 return expect(insurance.calcSkim()).to.eventually.be.a.bignumber.equal(toBN(1500));
             })
 
@@ -197,7 +186,6 @@ contract('Insurance Test', function (accounts) {
                 await insurance.setCurveVaultPercent(1000);
                 await mockPnl.setLastGvtAssets(toBN(20000).mul(baseNum));
                 await mockPnl.setLastPwrdAssets(toBN(10100).mul(baseNum));
-                // console.log('calcSkim: ' + await insurance.calcSkim());
                 return expect(insurance.calcSkim()).to.eventually.be.a.bignumber.equal(toBN(1000));
             })
 
@@ -205,7 +193,6 @@ contract('Insurance Test', function (accounts) {
                 await insurance.setCurveVaultPercent(1000);
                 await mockPnl.setLastGvtAssets(toBN(20000).mul(baseNum));
                 await mockPnl.setLastPwrdAssets(toBN(10000).mul(baseNum));
-                // console.log('calcSkim: ' + await insurance.calcSkim());
                 return expect(insurance.calcSkim()).to.eventually.be.a.bignumber.equal(toBN(0));
             })
         });
@@ -259,9 +246,7 @@ contract('Insurance Test', function (accounts) {
 
         it('calcVaultTargetDelta all', async () => {
             const sysState = await insurance.prepareCalculation();
-            // console.log("sysState: " + JSON.stringify(sysState));
             const result1 = await allocation.calcVaultTargetDelta(sysState, false);
-            // console.log("result1: " + result1);
 
             const vaultAssets = Array(3);
             vaultAssets[0] = await mockDAIVault.totalAssets();
@@ -269,10 +254,6 @@ contract('Insurance Test', function (accounts) {
             vaultAssets[2] = await mockUSDTVault.totalAssets();
 
             const result2 = await calcVaultTargetDelta(vaultAssets, vaultTargetPercents);
-            // console.log("result2.swapIns: " + result2.swapIns);
-            // console.log("result2.swapOuts: " + result2.swapOuts);
-            // console.log("result2.vaultTargetAssets: " + result2.vaultTargetAssets);
-            // console.log("result2.swapInTotal: " + result2.swapInTotal);
             expect(result2.swapIns.toString()).equal(result1.swapInAmountsUsd.toString());
             expect(result2.swapInsSB.toString()).equal(result1.swapInAmounts.toString());
             expect(result2.swapOuts.toString()).equal(result1.swapOutPercents.toString());
@@ -282,9 +263,7 @@ contract('Insurance Test', function (accounts) {
 
         it('calcVaultTargetDelta onlySwapOut', async () => {
             const sysState = await insurance.prepareCalculation();
-            // console.log("sysState: " + JSON.stringify(sysState));
             const result1 = await allocation.calcVaultTargetDelta(sysState, true);
-            // console.log("result1: " + result1);
 
             const vaultAssets = Array(3);
             vaultAssets[0] = await mockDAIVault.totalAssets();
@@ -292,17 +271,12 @@ contract('Insurance Test', function (accounts) {
             vaultAssets[2] = await mockUSDTVault.totalAssets();
 
             const result2 = await calcVaultTargetDelta(vaultAssets, vaultTargetPercents);
-            // console.log("result2.swapIns: " + result2.swapIns);
-            // console.log("result2.swapOuts: " + result2.swapOuts);
-            // console.log("result2.vaultTargetAssets: " + result2.vaultTargetAssets);
-            // console.log("result2.swapInTotal: " + result2.swapInTotal);
             return expect(result2.swapOuts.toString()).equal(result1.swapOutPercents.toString());
         })
 
         it('calcStrategyPercent when utilization is above TertiaryStrategyThreshold', async function () {
             const utilizationRatio = new BN(8000);
             const result = await allocation.calcStrategyPercent(utilizationRatio);
-            // console.log('result ' + result)
             expect(result[0]).to.be.a.bignumber.equal(new BN(5555));
             return expect(result[1]).to.be.a.bignumber.equal(new BN(4445));
         });
@@ -325,9 +299,7 @@ contract('Insurance Test', function (accounts) {
     describe('Exposure', function () {
         it('calcRiskExposure return both stable coin and protocol exposure', async () => {
             const sysState = await insurance.prepareCalculation();
-            // console.log("sysState: " + JSON.stringify(sysState));
             const expState = await exposure.calcRiskExposure(sysState);
-            // console.log("expState: " + JSON.stringify(expState));
             const stablecoinExposure = expState[0];
             const protocolExposure = expState[1];
             const curveExposure = expState[2];
@@ -345,8 +317,6 @@ contract('Insurance Test', function (accounts) {
             await mockUSDTVault.setTotal(toBN(10000).mul(usdtBaseNum));
 
             const result = await exposure.getUnifiedAssets(await mockController.vaults());
-            // console.log("result[0]: " + result[0]);
-            // console.log("result[1]: " + result[1].toString());
             expect(result[0]).to.be.a.bignumber.equal(new BN(30000).mul(baseNum));
             return expect(result[1].toString()).equal('10000000000000000000000,10000000000000000000000,10000000000000000000000');
         });
@@ -354,20 +324,12 @@ contract('Insurance Test', function (accounts) {
         it('sortVaultsByDelta bigFirst true', async function () {
             const result1 = await exposure.getUnifiedAssets(await mockController.vaults());
             const result2 = await exposure.sortVaultsByDelta(true, result1[0], result1[1], [toBN('2000'), toBN('5000'), toBN('3000')]);
-            // console.log("result2: " + result2.toString());
-            // console.log("result2[0]: " + result2[0]);
-            // console.log("result2[1]: " + result2[1]);
-            // console.log("result2[2]: " + result2[2]);
             return expect(JSON.stringify(result2)).equal('["0","2","1"]');
         });
 
         it('sortVaultsByDelta bigFirst false', async function () {
             const result1 = await exposure.getUnifiedAssets(await mockController.vaults());
             const result2 = await exposure.sortVaultsByDelta(false, result1[0], result1[1], [toBN('2000'), toBN('5000'), toBN('3000')]);
-            // console.log("result2: " + result2.toString());
-            // console.log("result2[0]: " + result2[0]);
-            // console.log("result2[1]: " + result2[1]);
-            // console.log("result2[2]: " + result2[2]);
             return expect(JSON.stringify(result2)).equal('["1","2","0"]');
         });
     })

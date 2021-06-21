@@ -14,7 +14,7 @@ const { toBN, BN } = require('web3-utils')
 const { distributeProfit } = require('../utils/pnl-utils');
 
 contract('PnL Test', function (accounts) {
-	const decimals = ['1000000000000000000', '1000000', '1000000'];
+    const decimals = ['1000000000000000000', '1000000', '1000000'];
     const [deployer, governance,] = accounts;
 
     const lifeGuardBase = new BN(10).pow(new BN(18));
@@ -41,9 +41,9 @@ contract('PnL Test', function (accounts) {
         mockUSDTVault = await MockVaultAdaptor.new();
         mockCurveVault = await MockVaultAdaptor.new();
         vaults = [mockDAIVault, mockUSDCVault, mockUSDTVault];
-		tokens = [mockDAI.address, mockUSDC.address, mockUSDT.address];
+        tokens = [mockDAI.address, mockUSDC.address, mockUSDT.address];
 
-        pnl = await PnL.new(mockPWRD.address, mockGvt.address);
+        pnl = await PnL.new(mockPWRD.address, mockGvt.address, 0, 0);
         await pnl.setController(mockController.address);
         await pnl.addToWhitelist(mockController.address);
         await mockController.setPnL(pnl.address);
@@ -78,9 +78,6 @@ contract('PnL Test', function (accounts) {
             await mockController.setTotalAssets(toBN(150).mul(thousandBaseNum).mul(lifeGuardBase))
 
             const res = await pnl.calcPnL()
-            // console.log("gvtAssets: " + res[0])
-            // console.log("pwrdAssets: " + res[1])
-            // console.log("totalAssets: " + await mockController.totalAssets())
             expect(res[0]).to.be.a.bignumber.closeTo(
                 toBN(100).mul(thousandBaseNum).mul(lifeGuardBase), toBN(1));
             return expect(res[1]).to.be.a.bignumber.closeTo(
@@ -88,10 +85,10 @@ contract('PnL Test', function (accounts) {
         })
     })
 
-    describe('execPnL', function () {
+    describe('distributeStrategyGainLoss', function () {
         it('revert when invalid caller address', async function () {
-            return expect(pnl.execPnL(0, { from: governance }))
-                .to.be.rejectedWith('only whitelist');
+            return expect(pnl.distributeStrategyGainLoss(0, 0, { from: governance }))
+                .to.be.rejectedWith('!Controller');
         })
 
         it('ok when gain and ratio < 80%', async function () {
@@ -105,27 +102,17 @@ contract('PnL Test', function (accounts) {
                 toBN(1).mul(thousandBaseNum).mul(usdtBaseNum),
             ];
 
-            for (let i = 0; i < vaults.length; i++) {
-                await vaults[i].setGain(profitAmounts[i]);
-            }
-
             const profit = await mockBuoy.stableToUsd(profitAmounts, true);
-
-            const totalAssets = await mockController.totalAssets();
-            await mockController.setTotalAssets(totalAssets.add(profit));
 
             const lastGVTAssets = await pnl.lastGvtAssets();
             const lastPWRDAssets = await pnl.lastPwrdAssets();
             const [expectGVTAssets, expectPWRDAssets] = distributeProfit(
                 profit, lastGVTAssets, lastPWRDAssets);
 
-            await mockController.execPnL(0);
+            await mockController.distributeStrategyGainLoss(profit, 0);
             const res = await pnl.calcPnL()
-            // console.log("expectGVTAssets: " + expectGVTAssets)
-            // console.log("expectPWRDAssets: " + expectPWRDAssets)
-            // console.log("gvtAssets: " + res[0])
-            // console.log("pwrdAssets: " + res[1])
-            // console.log("totalAssets: " + await mockController.totalAssets())
+            // console.log('res[0]: ' + res[0]);
+            // console.log('res[1]: ' + res[1]);
 
             expect(expectGVTAssets).to.be.a.bignumber.closeTo(res[0], toBN(1));
             return expect(expectPWRDAssets).to.be.a.bignumber.closeTo(res[1], toBN(1));
@@ -142,29 +129,15 @@ contract('PnL Test', function (accounts) {
                 0,
             ];
 
-            for (let i = 0; i < profitAmounts.length; i++) {
-                if (profitAmounts[i] > 0) {
-                    await vaults[i].setGain(profitAmounts[i]);
-                }
-            }
-
             const profit = await mockBuoy.stableToUsd(profitAmounts, true);
-
-            const totalAssets = await mockController.totalAssets();
-            await mockController.setTotalAssets(totalAssets.add(profit));
 
             const lastGVTAssets = await pnl.lastGvtAssets();
             const lastPWRDAssets = await pnl.lastPwrdAssets();
             const [expectGVTAssets, expectPWRDAssets] = distributeProfit(
                 profit, lastGVTAssets, lastPWRDAssets);
 
-            await mockController.execPnL(0);
+            await mockController.distributeStrategyGainLoss(profit, 0);
             const res = await pnl.calcPnL()
-            // console.log("expectGVTAssets: " + expectGVTAssets)
-            // console.log("expectPWRDAssets: " + expectPWRDAssets)
-            // console.log("gvtAssets: " + res[0])
-            // console.log("pwrdAssets: " + res[1])
-            // console.log("totalAssets: " + await mockController.totalAssets())
 
             expect(expectGVTAssets).to.be.a.bignumber.closeTo(res[0], toBN(1));
             return expect(expectPWRDAssets).to.be.a.bignumber.closeTo(res[1], toBN(1));
@@ -181,29 +154,15 @@ contract('PnL Test', function (accounts) {
                 0,
             ];
 
-            for (let i = 0; i < lossAmounts.length; i++) {
-                if (lossAmounts[i] > 0) {
-                    await vaults[i].setLoss(lossAmounts[i]);
-                }
-            }
-
             const loss = await mockBuoy.stableToUsd(lossAmounts, true);
-
-            const totalAssets = await mockController.totalAssets();
-            await mockController.setTotalAssets(totalAssets.sub(loss));
 
             const lastGVTAssets = await pnl.lastGvtAssets();
             const lastPWRDAssets = await pnl.lastPwrdAssets();
             const expectGVTAssets = lastGVTAssets.sub(loss);
             const expectPWRDAssets = lastPWRDAssets;
 
-            await mockController.execPnL(0);
-            const res = await pnl.calcPnL()
-            // console.log("expectGVTAssets: " + expectGVTAssets)
-            // console.log("expectPWRDAssets: " + expectPWRDAssets)
-            // console.log("gvtAssets: " + res[0])
-            // console.log("pwrdAssets: " + res[1])
-            // console.log("totalAssets: " + await mockController.totalAssets())
+            await mockController.distributeStrategyGainLoss(0, loss);
+            const res = await pnl.calcPnL();
 
             expect(expectGVTAssets).to.be.a.bignumber.closeTo(res[0], toBN(1));
             return expect(expectPWRDAssets).to.be.a.bignumber.closeTo(res[1], toBN(1));
@@ -220,160 +179,89 @@ contract('PnL Test', function (accounts) {
                 toBN(40).mul(thousandBaseNum).mul(usdtBaseNum),
             ];
 
-            for (let i = 0; i < lossAmounts.length; i++) {
-                if (lossAmounts[i] > 0) {
-                    await vaults[i].setLoss(lossAmounts[i]);
-                }
-            }
-
             const loss = await mockBuoy.stableToUsd(lossAmounts, true);
-
-            const totalAssets = await mockController.totalAssets();
-            await mockController.setTotalAssets(totalAssets.sub(loss));
 
             const lastGVTAssets = await pnl.lastGvtAssets();
             const lastPWRDAssets = await pnl.lastPwrdAssets();
             const expectGVTAssets = toBN(1).mul(lifeGuardBase);
             const expectPWRDAssets = lastPWRDAssets.sub(loss.add(toBN(1).mul(lifeGuardBase)).sub(lastGVTAssets));
 
-            await mockController.execPnL(0);
+            await mockController.distributeStrategyGainLoss(0, loss);
             const res = await pnl.calcPnL()
-            // console.log("expectGVTAssets: " + expectGVTAssets)
-            // console.log("expectPWRDAssets: " + expectPWRDAssets)
-            // console.log("gvtAssets: " + res[0])
-            // console.log("pwrdAssets: " + res[1])
-            // console.log("totalAssets: " + await mockController.totalAssets())
 
             expect(expectGVTAssets).to.be.a.bignumber.closeTo(res[0], toBN(1));
             return expect(expectPWRDAssets).to.be.a.bignumber.closeTo(res[1], toBN(1));
         })
     })
 
-    describe('pnlTrigger', function () {
-        it('should true when loss > threshold', async function () {
-            await pnl.setLossPercentThreshold(1000);
-            await mockController.increaseGTokenLastAmount(mockGvt.address, toBN(100).mul(thousandBaseNum).mul(lifeGuardBase))
-            await mockController.increaseGTokenLastAmount(mockPWRD.address, toBN(85).mul(thousandBaseNum).mul(lifeGuardBase))
-            await mockController.setTotalAssets(toBN(185).mul(thousandBaseNum).mul(lifeGuardBase))
+    describe('distributeHodlerBonus', function () {
+        it('ok', async function () {
+            await mockController.increaseGTokenLastAmount(mockGvt.address, toBN(100).mul(thousandBaseNum).mul(lifeGuardBase));
+            await mockController.increaseGTokenLastAmount(mockPWRD.address, toBN(50).mul(thousandBaseNum).mul(lifeGuardBase));
+            await mockController.setTotalAssets(toBN(150).mul(thousandBaseNum).mul(lifeGuardBase));
 
-            const lossAmounts = [
-                toBN(10).mul(thousandBaseNum).mul(daiBaseNum),
-                toBN(10).mul(thousandBaseNum).mul(usdcBaseNum),
-                0,
-            ];
+            const bonus = toBN(900).mul(lifeGuardBase);
 
-            for (let i = 0; i < lossAmounts.length; i++) {
-                if (lossAmounts[i] > 0) {
-                    await vaults[i].setLoss(lossAmounts[i]);
-                }
-            }
-            // console.log("pnl.pnlTrigger: " + await pnl.pnlTrigger())
+            const lastGVTAssets = await pnl.lastGvtAssets();
+            const lastPWRDAssets = await pnl.lastPwrdAssets();
 
-            return expect(pnl.pnlTrigger()).to.eventually.equal(true);
-        })
+            await mockController.distributeHodlerBonus(bonus);
+            const res = await pnl.calcPnL();
+            // console.log('res[0]: ' + res[0]);
+            // console.log('res[1]: ' + res[1]);
 
-        it('should false when loss < threshold', async function () {
-            await pnl.setLossPercentThreshold(1500);
-            await mockController.increaseGTokenLastAmount(mockGvt.address, toBN(100).mul(thousandBaseNum).mul(lifeGuardBase))
-            await mockController.increaseGTokenLastAmount(mockPWRD.address, toBN(85).mul(thousandBaseNum).mul(lifeGuardBase))
-            await mockController.setTotalAssets(toBN(185).mul(thousandBaseNum).mul(lifeGuardBase))
-
-            const lossAmounts = [
-                toBN(10).mul(thousandBaseNum).mul(daiBaseNum),
-                toBN(10).mul(thousandBaseNum).mul(usdcBaseNum),
-                0,
-            ];
-
-            for (let i = 0; i < lossAmounts.length; i++) {
-                if (lossAmounts[i] > 0) {
-                    await vaults[i].setLoss(lossAmounts[i]);
-                }
-            }
-            // console.log("pnl.pnlTrigger: " + await pnl.pnlTrigger())
-
-            return expect(pnl.pnlTrigger()).to.eventually.equal(false);
-        })
-
-        it('should true when gain > threshold', async function () {
-            await pnl.setGainPercentThreshold(500);
-            await mockController.increaseGTokenLastAmount(mockGvt.address, toBN(100).mul(thousandBaseNum).mul(lifeGuardBase))
-            await mockController.increaseGTokenLastAmount(mockPWRD.address, toBN(85).mul(thousandBaseNum).mul(lifeGuardBase))
-            await mockController.setTotalAssets(toBN(185).mul(thousandBaseNum).mul(lifeGuardBase))
-
-            const gainAmounts = [
-                toBN(10).mul(thousandBaseNum).mul(daiBaseNum),
-                0,
-                0,
-            ];
-
-            for (let i = 0; i < gainAmounts.length; i++) {
-                if (gainAmounts[i] > 0) {
-                    await vaults[i].setGain(gainAmounts[i]);
-                }
-            }
-            // console.log("pnl.pnlTrigger: " + await pnl.pnlTrigger())
-
-            return expect(pnl.pnlTrigger()).to.eventually.equal(true);
-        })
-
-        it('should true when gain < threshold', async function () {
-            await pnl.setGainPercentThreshold(1000);
-            await mockController.increaseGTokenLastAmount(mockGvt.address, toBN(100).mul(thousandBaseNum).mul(lifeGuardBase))
-            await mockController.increaseGTokenLastAmount(mockPWRD.address, toBN(85).mul(thousandBaseNum).mul(lifeGuardBase))
-            await mockController.setTotalAssets(toBN(185).mul(thousandBaseNum).mul(lifeGuardBase))
-
-            const gainAmounts = [
-                toBN(10).mul(thousandBaseNum).mul(daiBaseNum),
-                0,
-                0,
-            ];
-
-            for (let i = 0; i < gainAmounts.length; i++) {
-                if (gainAmounts[i] > 0) {
-                    await vaults[i].setGain(gainAmounts[i]);
-                }
-            }
-            // console.log("pnl.pnlTrigger: " + await pnl.pnlTrigger())
-
-            return expect(pnl.pnlTrigger()).to.eventually.equal(false);
+            expect(res[0]).to.be.a.bignumber.closeTo(lastGVTAssets.add(toBN(600).mul(lifeGuardBase)), toBN(1));
+            return expect(res[1]).to.be.a.bignumber.closeTo(lastPWRDAssets.add(toBN(300).mul(lifeGuardBase)), toBN(1));
         })
     })
 
-    describe('totalAssetsChangeTrigger', function () {
-        it('should true when total assets > last total assets', async function () {
-            await pnl.setTotalAssetsPercentThreshold(1000);
-            await mockController.increaseGTokenLastAmount(mockGvt.address, toBN(100).mul(thousandBaseNum).mul(lifeGuardBase))
-            await mockController.increaseGTokenLastAmount(mockPWRD.address, toBN(80).mul(thousandBaseNum).mul(lifeGuardBase))
-            await mockController.setTotalAssets(toBN(360).mul(thousandBaseNum).mul(lifeGuardBase))
+    describe('distributePriceChange', function () {
+        it('gain', async function () {
+            await mockController.increaseGTokenLastAmount(mockGvt.address, toBN(100).mul(thousandBaseNum).mul(lifeGuardBase));
+            await mockController.increaseGTokenLastAmount(mockPWRD.address, toBN(50).mul(thousandBaseNum).mul(lifeGuardBase));
+            await mockController.setTotalAssets(toBN(150).mul(thousandBaseNum).mul(lifeGuardBase));
 
-            // console.log("pnl.pnlTrigger: " + await pnl.totalAssetsChangeTrigger())
+            await mockController.setTotalAssets(toBN(160).mul(thousandBaseNum).mul(lifeGuardBase));
 
-            await expect(pnl.totalAssetsChangeTrigger()).to.eventually.equal(true);
+            await mockController.distributePriceChange();
+            const res = await pnl.calcPnL();
+            // console.log('res[0]: ' + res[0]);
+            // console.log('res[1]: ' + res[1]);
 
-            await mockController.execPnL(0);
-            const result = await pnl.calcPnL();
-            // console.log('result[0]: ' + result[0]);
-            // console.log('result[1]: ' + result[1]);
-            await expect(result[0]).to.be.a.bignumber.equal(toBN(280).mul(thousandBaseNum).mul(lifeGuardBase));
-            return expect(result[1]).to.be.a.bignumber.equal(toBN(80).mul(thousandBaseNum).mul(lifeGuardBase));
+            expect(res[0]).to.be.a.bignumber.equal(toBN(110).mul(thousandBaseNum).mul(lifeGuardBase));
+            return expect(res[1]).to.be.a.bignumber.equal(toBN(50).mul(thousandBaseNum).mul(lifeGuardBase));
         })
 
-        it('should true when total assets > last total assets', async function () {
-            await pnl.setTotalAssetsPercentThreshold(1000);
-            await mockController.increaseGTokenLastAmount(mockGvt.address, toBN(100).mul(thousandBaseNum).mul(lifeGuardBase))
-            await mockController.increaseGTokenLastAmount(mockPWRD.address, toBN(80).mul(thousandBaseNum).mul(lifeGuardBase))
-            await mockController.setTotalAssets(toBN(90).mul(thousandBaseNum).mul(lifeGuardBase))
+        it('gvt loss', async function () {
+            await mockController.increaseGTokenLastAmount(mockGvt.address, toBN(100).mul(thousandBaseNum).mul(lifeGuardBase));
+            await mockController.increaseGTokenLastAmount(mockPWRD.address, toBN(50).mul(thousandBaseNum).mul(lifeGuardBase));
+            await mockController.setTotalAssets(toBN(150).mul(thousandBaseNum).mul(lifeGuardBase));
 
-            // console.log("pnl.pnlTrigger: " + await pnl.totalAssetsChangeTrigger())
+            await mockController.setTotalAssets(toBN(120).mul(thousandBaseNum).mul(lifeGuardBase));
 
-            await expect(pnl.totalAssetsChangeTrigger()).to.eventually.equal(true);
+            await mockController.distributePriceChange();
+            const res = await pnl.calcPnL();
+            // console.log('res[0]: ' + res[0]);
+            // console.log('res[1]: ' + res[1]);
 
-            await mockController.execPnL(0);
-            const result = await pnl.calcPnL();
-            // console.log('result[0]: ' + result[0]);
-            // console.log('result[1]: ' + result[1]);
-            await expect(result[0]).to.be.a.bignumber.equal(toBN(10).mul(thousandBaseNum).mul(lifeGuardBase));
-            return expect(result[1]).to.be.a.bignumber.equal(toBN(80).mul(thousandBaseNum).mul(lifeGuardBase));
+            expect(res[0]).to.be.a.bignumber.equal(toBN(70).mul(thousandBaseNum).mul(lifeGuardBase));
+            return expect(res[1]).to.be.a.bignumber.equal(toBN(50).mul(thousandBaseNum).mul(lifeGuardBase));
+        })
+
+        it('pwrd loss', async function () {
+            await mockController.increaseGTokenLastAmount(mockGvt.address, toBN(100).mul(thousandBaseNum).mul(lifeGuardBase));
+            await mockController.increaseGTokenLastAmount(mockPWRD.address, toBN(50).mul(thousandBaseNum).mul(lifeGuardBase));
+            await mockController.setTotalAssets(toBN(150).mul(thousandBaseNum).mul(lifeGuardBase));
+
+            await mockController.setTotalAssets(toBN(30).mul(thousandBaseNum).mul(lifeGuardBase));
+
+            await mockController.distributePriceChange();
+            const res = await pnl.calcPnL();
+            // console.log('res[0]: ' + res[0]);
+            // console.log('res[1]: ' + res[1]);
+
+            expect(res[0]).to.be.a.bignumber.equal(toBN(1).mul(lifeGuardBase));
+            return expect(res[1]).to.be.a.bignumber.equal(toBN(30).mul(thousandBaseNum).mul(lifeGuardBase).sub(lifeGuardBase));
         })
     })
 })

@@ -15,8 +15,5 @@ interface IAllocation {
         view
         returns (StablecoinAllocationState memory stableState);
 
-    function calcStrategyPercent(uint256 utilisationRatio)
-        external
-        pure
-        returns (uint256[] memory);
+    function calcStrategyPercent(uint256 utilisationRatio) external pure returns (uint256[] memory);
 }

@@ -34,7 +34,6 @@ contract LifeGuard3Pool is ILifeGuard, Controllable, FixedStablecoins, Whitelist
     ICurve3Deposit public immutable crv3pool; // curve pool
     IERC20 public immutable lpToken; // Pool token
     IBuoy public immutable buoy; // Oracle
-    bool public healthCheck; //Check Curve ratios against external oracle
 
     uint256 public investToCurveThreshold;
     /// Mapping of asset amounts in lifeguard (DAI, USDC, USDT)
@@ -42,12 +41,7 @@ contract LifeGuard3Pool is ILifeGuard, Controllable, FixedStablecoins, Whitelist
 
     event LogHealhCheckUpdate(bool status);
     event LogNewCurveThreshold(uint256 threshold);
-    event LogNewEmergencyWithdrawal(
-        uint256 indexed token1,
-        uint256 indexed token2,
-        uint256 ratio,
-        uint256 decimals
-    );
+    event LogNewEmergencyWithdrawal(uint256 indexed token1, uint256 indexed token2, uint256 ratio, uint256 decimals);
     event LogNewInvest(
         uint256 depositAmount,
         uint256[N_COINS] delta,
@@ -82,6 +76,12 @@ contract LifeGuard3Pool is ILifeGuard, Controllable, FixedStablecoins, Whitelist
         }
     }
 
+    function getAssets() external view override returns (uint256[N_COINS] memory _assets) {
+        for (uint256 i; i < N_COINS; i++) {
+            _assets[i] = assets[i];
+        }
+    }
+
     /// @notice Approve vault adaptor to pull from lifeguard
     /// @param index Index of vaultAdaptors underlying asset
     function approveVaults(uint256 index) external onlyOwner {
@@ -104,13 +104,6 @@ contract LifeGuard3Pool is ILifeGuard, Controllable, FixedStablecoins, Whitelist
         emit LogNewCurveThreshold(_investToCurveThreshold);
     }
 
-    /// @notice Set lifeguard to check Curve against external oracle
-    /// @param check Check / no check
-    function setHealthCheck(bool check) external onlyOwner {
-        healthCheck = check;
-        emit LogHealhCheckUpdate(check);
-    }
-
     /// @notice Invest assets into Curve vault
     function investToCurveVault() external override onlyWhitelist {
         uint256[N_COINS] memory _inAmounts;
@@ -125,9 +118,7 @@ contract LifeGuard3Pool is ILifeGuard, Controllable, FixedStablecoins, Whitelist
     /// @notice Check if lifeguard is ready to invest into the Curve vault
     function investToCurveVaultTrigger() external view override returns (bool invest) {
         uint256 totalAssetsLP = _totalAssets();
-        return
-            totalAssetsLP >
-            investToCurveThreshold.mul(uint256(10)**IERC20Detailed(address(lpToken)).decimals());
+        return totalAssetsLP > investToCurveThreshold.mul(uint256(10)**IERC20Detailed(address(lpToken)).decimals());
     }
 
     /// @notice Pull out and redistribute Curve vault assets (3Crv) to underlying stable vaults
@@ -188,7 +179,6 @@ contract LifeGuard3Pool is ILifeGuard, Controllable, FixedStablecoins, Whitelist
 
     /// @notice Deposit assets into Curve pool
     function deposit() external override onlyWhitelist returns (uint256 newAssets) {
-        if (healthCheck) require(_poolCheck(), "deposit: !pool unhealthy");
         uint256[N_COINS] memory _inAmounts;
         for (uint256 i = 0; i < N_COINS; i++) {
             IERC20 coin = IERC20(getToken(i));
@@ -205,12 +195,30 @@ contract LifeGuard3Pool is ILifeGuard, Controllable, FixedStablecoins, Whitelist
     /// @param recipient Recipient of assets
     /// @dev withdrawSingle Swaps available assets in the lifeguard into target assets
     ///        using the Curve exhange function. This asset is then sent to target recipient
-    function withdrawSingleCoin(
+    function withdrawSingleByLiquidity(
         uint256 i,
         uint256 minAmount,
         address recipient
     ) external override onlyWhitelist returns (uint256 usdAmount, uint256 balance) {
-        if (healthCheck) require(_poolCheck(), "withdrawSingle: !pool unhealthy");
+        IERC20 coin = IERC20(getToken(i));
+        crv3pool.remove_liquidity_one_coin(lpToken.balanceOf(address(this)), int128(i), 0);
+        uint256 balance = coin.balanceOf(address(this)).sub(assets[i]);
+        require(balance > minAmount, "withdrawSingle: !minAmount");
+        coin.safeTransfer(recipient, balance);
+        return (buoy.singleStableToUsd(balance, i), balance);
+    }
+
+    /// @notice Exchange underlying assets into one token
+    /// @param i Index of token to exchange to
+    /// @param minAmount Acceptable minimum amount of token to recieve
+    /// @param recipient Recipient of assets
+    /// @dev withdrawSingle Swaps available assets in the lifeguard into target assets
+    ///        using the Curve exhange function. This asset is then sent to target recipient
+    function withdrawSingleByExchange(
+        uint256 i,
+        uint256 minAmount,
+        address recipient
+    ) external override onlyWhitelist returns (uint256 usdAmount, uint256 balance) {
         IERC20 coin = IERC20(getToken(i));
         balance = coin.balanceOf(address(this)).sub(assets[i]);
         // Are available assets - locked assets for LP vault more than required
@@ -245,10 +253,6 @@ contract LifeGuard3Pool is ILifeGuard, Controllable, FixedStablecoins, Whitelist
     /// @notice Return underlying buoy
     function getBuoy() external view override returns (address) {
         return address(buoy);
-    }
-
-    function _poolCheck() private view returns (bool) {
-        return buoy.safetyCheck();
     }
 
     /// @notice Deposit into underlying vaults
@@ -336,18 +340,6 @@ contract LifeGuard3Pool is ILifeGuard, Controllable, FixedStablecoins, Whitelist
         return buoy.lpToUsd(lpAmount);
     }
 
-    /// @notice Used to get prices in case Curve pool has failed
-    /// @param token Token to get price ratio for
-    /// @dev All ratios are against USDC
-    function getEmergencyPrice(uint256 token)
-        external
-        view
-        override
-        returns (uint256 ratio, uint256 decimals)
-    {
-        return buoy.getRatio(1, token);
-    }
-
     // Private functions
 
     /// @notice Exchange one stable coin to another
@@ -391,7 +383,6 @@ contract LifeGuard3Pool is ILifeGuard, Controllable, FixedStablecoins, Whitelist
     /// @param i Target vault
     /// @param needSkim Leave assets in lifeguard for deposit into Curve vault (Y/N)
     function _investToVault(uint256 i, bool needSkim) private returns (uint256 balance) {
-        // require(whitelistedVault[vault], 'invest: !whitelisted[vault]');
         IVault vault;
         IERC20 coin;
         if (i < N_COINS) {

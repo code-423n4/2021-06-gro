@@ -194,24 +194,30 @@ contract('Vault Adaptor Test', function (accounts) {
       const amount = toBN(1000).mul(mockDAIDecimal);
       await daiAdaptor.withdraw(amount, investor1, { from: investor1 });
       await expect(mockDAI.balanceOf(investor1)).to.eventually.be.a.bignumber.equal(amount);
-      await expect(mockDAI.balanceOf(daiAdaptor.address)).to.eventually.be.a.bignumber.equal(toBN(0));
-      return expect(daiAdaptor.lastTotalAssets()).to.eventually.be.a.bignumber.equal(toBN(0));
+      return expect(daiAdaptor.totalAssets()).to.eventually.be.a.bignumber.equal(toBN(0));
     })
 
     it('withdrawByStrategyOrder', async () => {
       const amount = toBN(1000).mul(mockDAIDecimal);
       await daiAdaptor.withdrawByStrategyOrder(amount, investor1, false, { from: investor1 });
       await expect(mockDAI.balanceOf(investor1)).to.eventually.be.a.bignumber.equal(amount);
-      await expect(mockDAI.balanceOf(daiAdaptor.address)).to.eventually.be.a.bignumber.equal(toBN(0));
-      return expect(daiAdaptor.lastTotalAssets()).to.eventually.be.a.bignumber.equal(toBN(0));
+      return expect(daiAdaptor.totalAssets()).to.eventually.be.a.bignumber.equal(toBN(0));
     })
 
     it('withdrawByStrategyIndex', async () => {
       const amount = toBN(1000).mul(mockDAIDecimal);
       await daiAdaptor.withdrawByStrategyIndex(amount, investor1, 0, { from: investor1 });
       await expect(mockDAI.balanceOf(investor1)).to.eventually.be.a.bignumber.equal(amount);
+      return expect(daiAdaptor.totalAssets()).to.eventually.be.a.bignumber.equal(toBN(0));
+    })
+
+    it("Should be possible to migrate to a new vault", async function () {
+      const newAdaptor = await VaultAdaptorV0_1_3.new(mockDAIVault.address, mockDAI.address);
+      await expect(mockDAI.balanceOf(daiAdaptor.address)).to.eventually.be.a.bignumber.greaterThan(toBN(0));
+      await expect(mockDAI.balanceOf(newAdaptor.address)).to.eventually.be.a.bignumber.equal(toBN(0));
+      await daiAdaptor.migrate(newAdaptor.address);
       await expect(mockDAI.balanceOf(daiAdaptor.address)).to.eventually.be.a.bignumber.equal(toBN(0));
-      return expect(daiAdaptor.lastTotalAssets()).to.eventually.be.a.bignumber.equal(toBN(0));
+      await expect(mockDAI.balanceOf(newAdaptor.address)).to.eventually.be.a.bignumber.greaterThan(toBN(0));
     })
   });
 
@@ -226,14 +232,7 @@ contract('Vault Adaptor Test', function (accounts) {
       await mockDAI.approve(daiAdaptor.address, amount, { from: investor1 });
       await daiAdaptor.deposit(amount, { from: investor1 });
       await expect(mockDAI.balanceOf(investor1)).to.eventually.be.a.bignumber.equal(toBN(0));
-      await expect(mockDAI.balanceOf(daiAdaptor.address)).to.eventually.be.a.bignumber.equal(amount);
-      return expect(daiAdaptor.lastTotalAssets()).to.eventually.be.a.bignumber.equal(amount);
-    })
-
-    it('updatePnL', async () => {
-      const amount = toBN(1000).mul(mockDAIDecimal);
-      await daiAdaptor.updatePnL(amount, { from: investor1 });
-      return expect(daiAdaptor.lastTotalAssets()).to.eventually.be.a.bignumber.equal(amount);
+      return expect(daiAdaptor.totalAssets()).to.eventually.be.a.bignumber.equal(amount);
     })
   });
 
@@ -287,7 +286,6 @@ contract('Vault Adaptor Test', function (accounts) {
       await daiAdaptor.invest({ from: governance });
 
       const ratios = await mockDAIVault.getStrategiesDebtRatio();
-      // console.log('ratios: ' + ratios);
 
       const afterInvestAdaptor = await mockDAI.balanceOf(daiAdaptor.address);
       const afterInvestVault = await mockDAI.balanceOf(mockDAIVault.address);
@@ -309,7 +307,6 @@ contract('Vault Adaptor Test', function (accounts) {
       await daiAdaptor.invest({ from: governance });
 
       const ratios = await mockDAIVault.getStrategiesDebtRatio();
-      // console.log('ratios: ' + ratios);
 
       const afterInvestAdaptor = await mockDAI.balanceOf(daiAdaptor.address);
       const afterInvestVault = await mockDAI.balanceOf(mockDAIVault.address);
@@ -317,6 +314,5 @@ contract('Vault Adaptor Test', function (accounts) {
       expect(afterInvestVault).to.be.bignumber.equal(amount);
       return expect(ratios.toString()).equal('4000,6000');
     });
-
   });
 })

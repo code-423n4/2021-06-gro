@@ -20,8 +20,6 @@ contract('Pausable', function (accounts) {
             mockUSDT = await MockUSDT.new();
             let tokens = [mockDAI.address, mockUSDC.address, mockUSDT.address]
             let decimals = [10, 10, 10]
-            console.log(mockPWRD.address)
-            console.log(mockVault.address)
             controller = await Controller.new(mockPWRD.address, mockVault.address, tokens, decimals);
             await controller.addToWhitelist(deployer);
         })

@@ -39,4 +39,8 @@ interface IController {
     function emergencyState() external view returns (bool);
 
     function deadCoin() external view returns (uint256);
+
+    function distributeStrategyGainLoss(uint256 gain, uint256 loss) external;
+
+    function distributeHodlerBonus(uint256 bonus) external;
 }

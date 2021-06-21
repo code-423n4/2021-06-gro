@@ -9,7 +9,7 @@ interface IEmergencyHandler {
         uint256 minAmounts
     ) external;
 
-    function emergencyWithdrawAll (
+    function emergencyWithdrawAll(
         address user,
         bool pwrd,
         uint256 minAmounts

@@ -13,6 +13,7 @@ import "../interfaces/ILifeGuard.sol";
 import "../interfaces/IExposure.sol";
 import "../interfaces/IVault.sol";
 import "../interfaces/IPnL.sol";
+import "../interfaces/IBuoy.sol";
 
 /// @notice Contract for calculating current protocol exposures on a stablecoin and
 ///     protocol level. This contract can be upgraded if the systems underlying protocols
@@ -41,15 +42,14 @@ import "../interfaces/IPnL.sol";
 ///     LP tokens: 3Crv
 ///     Vaults: DAIVault, USDCVault, USDTVault, 3Crv vault
 ///     Strategy (exposures):
-///         - Harvest Finance:
-///             - Compound
-///             - Idle finance
+///         - Compound
+///         - Idle finance
 ///         - Yearn Generic Lender:
 ///             - Cream
 ///         - CurveXpool:
 ///             - Curve3Pool
-///             - CurveMetaPool (can change)
-///             - Yearn (v1 metapool vault, can change)
+///             - CurveMetaPool
+///             - Yearn
 contract Exposure is Constants, Controllable, Whitelist, IExposure {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
@@ -77,6 +77,24 @@ contract Exposure is Constants, Controllable, Whitelist, IExposure {
         emit LogNewMakerExposure(_makerUSDCExposure);
     }
 
+    function getExactRiskExposure(SystemState calldata sysState)
+        external
+        view
+        override
+        returns (ExposureState memory expState)
+    {
+        expState = _calcRiskExposure(sysState, false);
+        ILifeGuard lifeguard = ILifeGuard(_controller().lifeGuard());
+        IBuoy buoy = IBuoy(_controller().buoy());
+        for (uint256 i = 0; i < N_COINS; i++) {
+            uint256 assets = lifeguard.assets(i);
+            uint256 assetsUsd = buoy.singleStableToUsd(assets, i);
+            expState.stablecoinExposure[i] = expState.stablecoinExposure[i].add(
+                assetsUsd.mul(PERCENTAGE_DECIMAL_FACTOR).div(sysState.totalCurrentAssetsUsd)
+            );
+        }
+    }
+
     /// @notice Calculate stablecoin and protocol level risk exposure
     /// @param sysState Struct holding info about systems current state
     /// @dev This loops through all the vaults, checks the amount of assets in them
@@ -90,43 +108,7 @@ contract Exposure is Constants, Controllable, Whitelist, IExposure {
         override
         returns (ExposureState memory expState)
     {
-        address[N_COINS] memory vaults = _controller().vaults();
-        uint256 pCount = protocolCount;
-        expState.protocolExposure = new uint256[](pCount);
-        if (sysState.totalCurrentAssetsUsd == 0) {
-            return expState;
-        }
-        // Stablecoin exposure
-        for (uint256 i = 0; i < N_COINS; i++) {
-            uint256 vaultAssetsPercent =
-                sysState.vaultCurrentAssetsUsd[i].mul(PERCENTAGE_DECIMAL_FACTOR).div(
-                    sysState.totalCurrentAssetsUsd
-                );
-            expState.stablecoinExposure[i] = vaultAssetsPercent;
-            // Protocol exposure
-            for (uint256 j = 0; j < pCount; j++) {
-                uint256 percentOfSystem =
-                    calculatePercentOfSystem(
-                        vaults[i],
-                        j,
-                        vaultAssetsPercent,
-                        sysState.vaultCurrentAssets[i]
-                    );
-                expState.protocolExposure[j] = expState.protocolExposure[j].add(percentOfSystem);
-            }
-        }
-        // Curve exposure is calculated by adding the Curve vaults total assets and any
-        // assets in the lifeguard which are poised to be invested into the Curve vault
-        expState.curveExposure = sysState
-            .lifeguardCurrentAssetsUsd
-            .add(sysState.curveCurrentAssetsUsd)
-            .mul(PERCENTAGE_DECIMAL_FACTOR)
-            .div(sysState.totalCurrentAssetsUsd);
-        // Calculate stablecoin exposures
-        expState.stablecoinExposure = calculateStableCoinExposure(
-            expState.stablecoinExposure,
-            expState.curveExposure
-        );
+        expState = _calcRiskExposure(sysState, true);
 
         // Establish if any stablecoin/protocol is over exposed
         (expState.stablecoinExposed, expState.protocolExposed) = isExposed(
@@ -206,11 +188,9 @@ contract Exposure is Constants, Controllable, Whitelist, IExposure {
         int256 minDelta;
         for (uint256 i = 0; i < N_COINS; i++) {
             // Get difference between vault current assets and vault target
-            int256 delta =
-                int256(
-                    unifiedAssets[i] -
-                        unifiedTotalAssets.mul(targetPercents[i]).div(PERCENTAGE_DECIMAL_FACTOR)
-                );
+            int256 delta = int256(
+                unifiedAssets[i] - unifiedTotalAssets.mul(targetPercents[i]).div(PERCENTAGE_DECIMAL_FACTOR)
+            );
             // Establish order
             if (delta > maxDelta) {
                 maxDelta = delta;
@@ -242,21 +222,21 @@ contract Exposure is Constants, Controllable, Whitelist, IExposure {
         uint256 vaultAssets
     ) private view returns (uint256 percentOfSystem) {
         if (vaultAssets == 0) return 0;
-        uint256 strategyAssetsPercent =
-            IVault(vault).getStrategyAssets(index).mul(PERCENTAGE_DECIMAL_FACTOR).div(vaultAssets);
-
-        percentOfSystem = vaultAssetsPercent.mul(strategyAssetsPercent).div(
-            PERCENTAGE_DECIMAL_FACTOR
+        uint256 strategyAssetsPercent = IVault(vault).getStrategyAssets(index).mul(PERCENTAGE_DECIMAL_FACTOR).div(
+            vaultAssets
         );
+
+        percentOfSystem = vaultAssetsPercent.mul(strategyAssetsPercent).div(PERCENTAGE_DECIMAL_FACTOR);
     }
 
     /// @notice Calculate the net stablecoin exposure
     /// @param directlyExposure Amount of stablecoin in vault+strategies
     /// @param curveExposure Percent of assets in Curve
-    function calculateStableCoinExposure(
-        uint256[N_COINS] memory directlyExposure,
-        uint256 curveExposure
-    ) private view returns (uint256[N_COINS] memory stableCoinExposure) {
+    function calculateStableCoinExposure(uint256[N_COINS] memory directlyExposure, uint256 curveExposure)
+        private
+        view
+        returns (uint256[N_COINS] memory stableCoinExposure)
+    {
         uint256 maker = directlyExposure[0].mul(makerUSDCExposure).div(PERCENTAGE_DECIMAL_FACTOR);
         for (uint256 i = 0; i < N_COINS; i++) {
             uint256 indirectExposure = curveExposure;
@@ -292,5 +272,48 @@ contract Exposure is Constants, Controllable, Whitelist, IExposure {
         }
         if (!protocolExposed && curveExposure > rebalanceThreshold) protocolExposed = true;
         return (stablecoinExposed, protocolExposed);
+    }
+
+    function _calcRiskExposure(SystemState memory sysState, bool treatLifeguardAsCurve)
+        private
+        view
+        returns (ExposureState memory expState)
+    {
+        address[N_COINS] memory vaults = _controller().vaults();
+        uint256 pCount = protocolCount;
+        expState.protocolExposure = new uint256[](pCount);
+        if (sysState.totalCurrentAssetsUsd == 0) {
+            return expState;
+        }
+        // Stablecoin exposure
+        for (uint256 i = 0; i < N_COINS; i++) {
+            uint256 vaultAssetsPercent = sysState.vaultCurrentAssetsUsd[i].mul(PERCENTAGE_DECIMAL_FACTOR).div(
+                sysState.totalCurrentAssetsUsd
+            );
+            expState.stablecoinExposure[i] = vaultAssetsPercent;
+            // Protocol exposure
+            for (uint256 j = 0; j < pCount; j++) {
+                uint256 percentOfSystem = calculatePercentOfSystem(
+                    vaults[i],
+                    j,
+                    vaultAssetsPercent,
+                    sysState.vaultCurrentAssets[i]
+                );
+                expState.protocolExposure[j] = expState.protocolExposure[j].add(percentOfSystem);
+            }
+        }
+        if (treatLifeguardAsCurve) {
+            // Curve exposure is calculated by adding the Curve vaults total assets and any
+            // assets in the lifeguard which are poised to be invested into the Curve vault
+            expState.curveExposure = sysState.curveCurrentAssetsUsd.add(sysState.lifeguardCurrentAssetsUsd);
+        } else {
+            expState.curveExposure = sysState.curveCurrentAssetsUsd;
+        }
+        expState.curveExposure = expState.curveExposure.mul(PERCENTAGE_DECIMAL_FACTOR).div(
+            sysState.totalCurrentAssetsUsd
+        );
+
+        // Calculate stablecoin exposures
+        expState.stablecoinExposure = calculateStableCoinExposure(expState.stablecoinExposure, expState.curveExposure);
     }
 }

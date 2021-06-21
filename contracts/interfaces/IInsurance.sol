@@ -10,7 +10,7 @@ interface IInsurance {
 
     function calcSkim() external view returns (uint256);
 
-    function rebalanceForWithdraw(uint256 withdrawUsd, bool pwrd) external;
+    function rebalanceForWithdraw(uint256 withdrawUsd, bool pwrd) external returns (bool);
 
     function getDelta(uint256 withdrawUsd) external view returns (uint256[3] memory delta);
 
@@ -23,10 +23,7 @@ interface IInsurance {
             uint256
         );
 
-    function sortVaultsByDelta(bool bigFirst)
-        external
-        view
-        returns (uint256[3] memory vaultIndexes);
+    function sortVaultsByDelta(bool bigFirst) external view returns (uint256[3] memory vaultIndexes);
 
     function getStrategiesTargetRatio() external view returns (uint256[] memory);
 

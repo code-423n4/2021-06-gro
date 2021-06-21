@@ -15,13 +15,13 @@ contract Whitelist is Ownable {
     }
 
     function addToWhitelist(address user) external onlyOwner {
-        require(user != address(0), 'WhiteList: 0x');
+        require(user != address(0), "WhiteList: 0x");
         whitelist[user] = true;
         emit LogAddToWhitelist(user);
     }
 
     function removeFromWhitelist(address user) external onlyOwner {
-        require(user != address(0), 'WhiteList: 0x');
+        require(user != address(0), "WhiteList: 0x");
         whitelist[user] = false;
         emit LogRemoveFromWhitelist(user);
     }

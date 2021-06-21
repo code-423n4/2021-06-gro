@@ -7,6 +7,8 @@ interface ILifeGuard {
 
     function totalAssets() external view returns (uint256);
 
+    function getAssets() external view returns (uint256[3] memory);
+
     function totalAssetsUsd() external view returns (uint256);
 
     function availableUsd() external view returns (uint256 dollar);
@@ -17,23 +19,23 @@ interface ILifeGuard {
 
     function investToCurveVault() external;
 
-    function distributeCurveVault(uint256 amount, uint256[3] memory delta)
-        external
-        returns (uint256[3] memory);
+    function distributeCurveVault(uint256 amount, uint256[3] memory delta) external returns (uint256[3] memory);
 
     function deposit() external returns (uint256 usdAmount);
 
-    function withdrawSingleCoin(
+    function withdrawSingleByLiquidity(
         uint256 i,
         uint256 minAmount,
         address recipient
     ) external returns (uint256 usdAmount, uint256 amount);
 
-    function invest(uint256 whaleDepositAmount, uint256[3] calldata delta)
-        external
-        returns (uint256 dollarAmount);
+    function withdrawSingleByExchange(
+        uint256 i,
+        uint256 minAmount,
+        address recipient
+    ) external returns (uint256 usdAmount, uint256 amount);
 
-    function getEmergencyPrice(uint256 token) external view returns (uint256, uint256);
+    function invest(uint256 whaleDepositAmount, uint256[3] calldata delta) external returns (uint256 dollarAmount);
 
     function getBuoy() external view returns (address);
 

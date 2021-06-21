@@ -4,45 +4,57 @@ pragma solidity >=0.6.0 <0.7.0;
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "../../interfaces/IBuoy.sol";
-import "../../interfaces/IERC20Detailed.sol";
-import {ICurve3Pool} from "../../interfaces/ICurve.sol";
-import {FixedStablecoins} from "../../common/FixedContracts.sol";
-import "../../interfaces/IChainPrice.sol";
-import "../../common/Whitelist.sol";
-import "hardhat/console.sol";
+
+import {FixedStablecoins} from "contracts/common/FixedContracts.sol";
+import {ICurve3Pool} from "contracts/interfaces/ICurve.sol";
+
+import "contracts/common/Whitelist.sol";
+import "contracts/interfaces/IBuoy.sol";
+import "contracts/interfaces/IChainPrice.sol";
+import "contracts/interfaces/IChainlinkAggregator.sol";
+import "contracts/interfaces/IERC20Detailed.sol";
 
 /// @notice Contract for calculating prices of underlying assets and LP tokens in Curve pool. Also
 ///     used to sanity check pool against external oracle, to ensure that pools underlying coin ratios
 ///     are within a specific range (measued in BP) of the external oracles coin price ratios.
-contract Buoy3Pool is Whitelist, FixedStablecoins, IBuoy {
+///     Sanity check:
+///         The Buoy checks previously recorded (cached) curve coin dy, which it compares against current curve dy,
+///         blocking any interaction that is outside a certain tolerance (BASIS_POINTS). When updting the cached
+///         value, the buoy uses chainlink to ensure that curves prices arent off peg.
+contract Buoy3Pool is Whitelist, FixedStablecoins, IBuoy, IChainPrice {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
     uint256 TIME_LIMIT = 3000;
-    uint256 public BASIS_POINTS = 1000;
+    uint256 public BASIS_POINTS = 20;
+    uint256 constant CHAIN_FACTOR = 100;
 
     ICurve3Pool public immutable override curvePool;
     IERC20 public immutable lpToken;
-    IChainPrice public immutable override chainOracle;
+
+    mapping(uint256 => uint256) lastRatio;
+
+    // Chianlink price feed
+    address public immutable daiUsdAgg;
+    address public immutable usdcUsdAgg;
+    address public immutable usdtUsdAgg;
+
+    mapping(address => mapping(address => uint256)) public tokenRatios;
 
     event LogNewBasisPointLimit(uint256 oldLimit, uint256 newLimit);
-    event LogCurvePoolAdded(
-        address indexed curvpool,
-        address indexed lpToken,
-        address[N_COINS] tokens
-    );
 
     constructor(
         address _crv3pool,
         address poolToken,
-        address _chainOracle,
         address[N_COINS] memory _tokens,
-        uint256[N_COINS] memory _decimals
+        uint256[N_COINS] memory _decimals,
+        address[N_COINS] memory aggregators
     ) public FixedStablecoins(_tokens, _decimals) {
         curvePool = ICurve3Pool(_crv3pool);
         lpToken = IERC20(poolToken);
-        chainOracle = IChainPrice(_chainOracle);
+        daiUsdAgg = aggregators[0];
+        usdcUsdAgg = aggregators[1];
+        usdtUsdAgg = aggregators[2];
     }
 
     /// @notice Set limit for how much Curve pool and external oracle is allowed
@@ -70,26 +82,30 @@ contract Buoy3Pool is Whitelist, FixedStablecoins, IBuoy {
     ///             underlying assets, but in opposite directions
     ///     This mean that the following set should provide the necessary coverage checks
     ///     to establish that the coins pricing is healthy:
-    ///         (a/b, a/c, b/c)
+    ///         (a/b, a/c)
     function safetyCheck() external view override returns (bool) {
-        for (uint256 i = 0; i < N_COINS; i++) {
-            for (uint256 j = i + 1; j < N_COINS; j++) {
-                if (ratioCheck(i, j) > BASIS_POINTS) return false;
+        for (uint256 i = 1; i < N_COINS; i++) {
+            uint256 _ratio = curvePool.get_dy(int128(0), int128(i), getDecimal(0));
+            _ratio = abs(int256(_ratio - lastRatio[i]));
+            if (
+                _ratio.mul(PERCENTAGE_DECIMAL_FACTOR).div(CURVE_RATIO_DECIMALS_FACTOR) >
+                BASIS_POINTS
+            ) {
+                return false;
             }
         }
         return true;
     }
 
-    /// @notice Get current pool token ratios
-    /// @param i Token in
-    /// @param j Token out
-    function _getTokenRatio(uint256 i, uint256 j) private view returns (uint256) {
-        if (i == j) {
-            return getDecimal(i);
-        } else {
-            // Get j amount for i tokens
-            return curvePool.get_dy_underlying(int128(i), int128(j), getDecimal(i));
-        }
+    /// @notice Updated cached curve value with a custom tolerance towards chainlink
+    /// @param tolerance How much difference between curve and chainlink can be tolerated
+    function updateRatiosWithTolerance(uint256 tolerance) external onlyOwner returns (bool) {
+        return _updateRatios(tolerance);
+    }
+
+    /// @notice Updated cached curve values
+    function updateRatios() external override onlyWhitelist returns (bool) {
+        return _updateRatios(BASIS_POINTS);
     }
 
     /// @notice Get USD value for a specific input amount of tokens, slippage included
@@ -173,29 +189,6 @@ contract Buoy3Pool is Whitelist, FixedStablecoins, IBuoy {
         balances = _balances;
     }
 
-    /// @notice Retrieve token ratio from external oracle
-    /// @param token0 Token in
-    /// @param token1 Token out
-    function getRatio(uint256 token0, uint256 token1)
-        external
-        view
-        override
-        returns (uint256, uint256)
-    {
-        (uint256 _ratio, uint256 _decimals) = chainOracle.getRatio(token0, token1);
-        return (_ratio, _decimals);
-    }
-
-    /// @notice Sanity check the ratio of the LP token against an oracle
-    /// @param token0 Token in
-    /// @param token1 Token out
-    function ratioCheck(uint256 token0, uint256 token1) public view returns (uint256) {
-        uint256 _ratio = _getTokenRatio(token0, token1);
-        (uint256 checkRatio, uint256 checkDecimals) = chainOracle.getRatio(token0, token1);
-        uint256 outRatio = abs(int256(_ratio - checkRatio)).mul(10000).div(getDecimal(token1));
-        return outRatio;
-    }
-
     function getVirtualPrice() external view override returns (uint256) {
         return curvePool.get_virtual_price();
     }
@@ -242,8 +235,62 @@ contract Buoy3Pool is Whitelist, FixedStablecoins, IBuoy {
         return inAmount.mul(DEFAULT_DECIMALS_FACTOR).div(curvePool.get_virtual_price());
     }
 
+    /// @notice Calculate price ratios for stablecoins
+    ///     Get USD price data for stablecoin
+    /// @param i Stablecoin to get USD price for
+    function getPriceFeed(uint256 i) external view override returns (uint256 _price) {
+        _price = uint256(IChainlinkAggregator(getAggregator(i)).latestAnswer());
+    }
+
+    /// @notice Fetch chainlink token ratios
+    /// @param i Token in
+    function getTokenRatios(uint256 i) private view returns (uint256[3] memory _ratios) {
+        uint256[3] memory _prices;
+        _prices[0] = uint256(IChainlinkAggregator(getAggregator(0)).latestAnswer());
+        _prices[1] = uint256(IChainlinkAggregator(getAggregator(1)).latestAnswer());
+        _prices[2] = uint256(IChainlinkAggregator(getAggregator(2)).latestAnswer());
+        for (uint256 j = 0; j < 3; j++) {
+            if (i == j) {
+                _ratios[i] = CHAINLINK_PRICE_DECIMAL_FACTOR;
+            } else {
+                _ratios[j] = _prices[i].mul(CHAINLINK_PRICE_DECIMAL_FACTOR).div(_prices[j]);
+            }
+        }
+        return _ratios;
+    }
+
+    function getAggregator(uint256 index) private view returns (address) {
+        if (index == 0) {
+            return daiUsdAgg;
+        } else if (index == 1) {
+            return usdcUsdAgg;
+        } else {
+            return usdtUsdAgg;
+        }
+    }
+
     /// @notice Get absolute value
     function abs(int256 x) private pure returns (uint256) {
         return x >= 0 ? uint256(x) : uint256(-x);
+    }
+
+    function _updateRatios(uint256 tolerance) private returns (bool) {
+        uint256[N_COINS] memory chainRatios = getTokenRatios(0);
+        uint256[N_COINS] memory newRatios;
+        for (uint256 i = 1; i < N_COINS; i++) {
+            uint256 _ratio = curvePool.get_dy(int128(0), int128(i), getDecimal(0));
+            uint256 check = abs(int256(_ratio) - int256(chainRatios[i].div(CHAIN_FACTOR)));
+            if (
+                check.mul(PERCENTAGE_DECIMAL_FACTOR).div(CURVE_RATIO_DECIMALS_FACTOR) > tolerance
+            ) {
+                return false;
+            } else {
+                newRatios[i] = _ratio;
+            }
+        }
+        for (uint256 i = 1; i < N_COINS; i++) {
+            lastRatio[i] = newRatios[i];
+        }
+        return true;
     }
 }

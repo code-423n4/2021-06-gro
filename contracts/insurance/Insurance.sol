@@ -139,12 +139,7 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
 
     /// @notice Deposit deltas => stablecoin allocation targets. Large deposits will thus
     ///     always push the system towards a steady state
-    function calculateDepositDeltasOnAllVaults()
-        public
-        view
-        override
-        returns (uint256[N_COINS] memory)
-    {
+    function calculateDepositDeltasOnAllVaults() public view override returns (uint256[N_COINS] memory) {
         return getStablePercents();
     }
 
@@ -162,13 +157,16 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
     {
         uint256[N_COINS] memory investDelta;
         uint256[N_COINS] memory vaultIndexes;
-        (uint256 totalAssets, uint256[N_COINS] memory vaultAssets) =
-            exposure.getUnifiedAssets(_controller().vaults());
+        (uint256 totalAssets, uint256[N_COINS] memory vaultAssets) = exposure.getUnifiedAssets(_controller().vaults());
         // If deposited amount is less than the deposit limit for a the system, the
         // deposited is treated as a tuna deposit (single vault target)...
         if (amount < totalAssets.mul(maxPercentForDeposit).div(PERCENTAGE_DECIMAL_FACTOR)) {
-            uint256[N_COINS] memory _vaultIndexes =
-                exposure.sortVaultsByDelta(false, totalAssets, vaultAssets, getStablePercents());
+            uint256[N_COINS] memory _vaultIndexes = exposure.sortVaultsByDelta(
+                false,
+                totalAssets,
+                vaultAssets,
+                getStablePercents()
+            );
             investDelta[vaultIndexes[0]] = 10000;
             vaultIndexes[0] = _vaultIndexes[0];
             vaultIndexes[1] = _vaultIndexes[1];
@@ -185,14 +183,8 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
     /// @notice Sort vaults by the delta of target asset - current asset,
     ///     only support 3 vaults now
     /// @param bigFirst Return array order most exposed -> least exposed
-    function sortVaultsByDelta(bool bigFirst)
-        external
-        view
-        override
-        returns (uint256[N_COINS] memory vaultIndexes)
-    {
-        (uint256 totalAssets, uint256[N_COINS] memory vaultAssets) =
-            exposure.getUnifiedAssets(_controller().vaults());
+    function sortVaultsByDelta(bool bigFirst) external view override returns (uint256[N_COINS] memory vaultIndexes) {
+        (uint256 totalAssets, uint256[N_COINS] memory vaultAssets) = exposure.getUnifiedAssets(_controller().vaults());
         return exposure.sortVaultsByDelta(bigFirst, totalAssets, vaultAssets, getStablePercents());
     }
 
@@ -200,9 +192,9 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
     function rebalanceTrigger() external view override returns (bool sysNeedRebalance) {
         SystemState memory sysState = prepareCalculation();
         sysState.utilisationRatio = IPnL(_controller().pnl()).utilisationRatio();
-        sysState.rebalanceThreshold = PERCENTAGE_DECIMAL_FACTOR
-            .sub(sysState.utilisationRatio.div(2))
-            .sub(exposureBufferRebalance);
+        sysState.rebalanceThreshold = PERCENTAGE_DECIMAL_FACTOR.sub(sysState.utilisationRatio.div(2)).sub(
+            exposureBufferRebalance
+        );
         ExposureState memory expState = exposure.calcRiskExposure(sysState);
         sysNeedRebalance = expState.stablecoinExposed || expState.protocolExposed;
     }
@@ -212,16 +204,16 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
     ///     After which it will pull assets out from overexposed vaults and invest the freed up assets
     ///     to the other stablecoin vaults.
     function rebalance() external override onlyWhitelist {
-        IPnL pnl = IPnL(_controller().pnl());
-        if (pnl.pnlTrigger()) {
-            pnl.execPnL(0);
-        }
+        // IPnL pnl = IPnL(_controller().pnl());
+        // if (pnl.pnlTrigger()) {
+        //     pnl.execPnL(0);
+        // }
 
         SystemState memory sysState = prepareCalculation();
         sysState.utilisationRatio = IPnL(_controller().pnl()).utilisationRatio();
-        sysState.rebalanceThreshold = PERCENTAGE_DECIMAL_FACTOR
-            .sub(sysState.utilisationRatio.div(2))
-            .sub(exposureBufferRebalance);
+        sysState.rebalanceThreshold = PERCENTAGE_DECIMAL_FACTOR.sub(sysState.utilisationRatio.div(2)).sub(
+            exposureBufferRebalance
+        );
         ExposureState memory expState = exposure.calcRiskExposure(sysState);
         /// If the system is in an OK state, do nothing...
         if (!expState.stablecoinExposed && !expState.protocolExposed) return;
@@ -235,8 +227,8 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
     ///     on the amount withdrawn, and rebalances to get additional assets for withdrawal
     /// @param withdrawUsd Target USD amount to withdraw
     /// @param pwrd Pwrd or gvt
-    function rebalanceForWithdraw(uint256 withdrawUsd, bool pwrd) external override onlyWhitelist {
-        withdraw(withdrawUsd, pwrd);
+    function rebalanceForWithdraw(uint256 withdrawUsd, bool pwrd) external override onlyWhitelist returns (bool) {
+        return withdraw(withdrawUsd, pwrd);
     }
 
     /// @notice Determine if part of a deposit should be routed to the LP vault - This only applies
@@ -248,10 +240,7 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
         (uint256 gvt, uint256 pwrd) = pnl.calcPnL();
         uint256 totalAssets = gvt.add(pwrd);
         uint256 curveAssets = IVault(_controller().curveVault()).totalAssets();
-        if (
-            totalAssets != 0 &&
-            curveAssets.mul(PERCENTAGE_DECIMAL_FACTOR).div(totalAssets) >= curveVaultPercent
-        ) {
+        if (totalAssets != 0 && curveAssets.mul(PERCENTAGE_DECIMAL_FACTOR).div(totalAssets) >= curveVaultPercent) {
             return 0;
         }
         return curveVaultPercent;
@@ -267,6 +256,7 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
     function prepareCalculation() public view returns (SystemState memory systemState) {
         ILifeGuard lg = getLifeGuard();
         IBuoy buoy = IBuoy(lg.getBuoy());
+        require(buoy.safetyCheck());
         IVault curve = IVault(_controller().curveVault());
         systemState.lifeguardCurrentAssetsUsd = lg.totalAssetsUsd();
         systemState.curveCurrentAssetsUsd = buoy.lpToUsd(curve.totalAssets());
@@ -280,9 +270,7 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
             IVault vault = IVault(vaults[i]);
             uint256 vaultAssets = vault.totalAssets();
             uint256 vaultAssetsUsd = buoy.singleStableToUsd(vaultAssets, i);
-            systemState.totalCurrentAssetsUsd = systemState.totalCurrentAssetsUsd.add(
-                vaultAssetsUsd
-            );
+            systemState.totalCurrentAssetsUsd = systemState.totalCurrentAssetsUsd.add(vaultAssetsUsd);
             systemState.vaultCurrentAssets[i] = vaultAssets;
             systemState.vaultCurrentAssetsUsd[i] = vaultAssetsUsd;
         }
@@ -294,12 +282,14 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
     ///     gas costs by reducing the number of vaults and strategies to interact with
     /// @param amount Amount to withdraw in USD
     /// @param pwrd Is pwrd or vault being burned - affects withdrawal queue
-    function withdraw(uint256 amount, bool pwrd) private {
+    function withdraw(uint256 amount, bool pwrd) private returns (bool curve) {
         address[N_COINS] memory vaults = _controller().vaults();
 
         // Determine if it's possible to withdraw from one or two vaults without breaking exposure
-        (uint256 withdrawType, uint256[N_COINS] memory withdrawalAmounts) =
-            calculateWithdrawalAmountsOnPartVaults(amount, vaults);
+        (uint256 withdrawType, uint256[N_COINS] memory withdrawalAmounts) = calculateWithdrawalAmountsOnPartVaults(
+            amount,
+            vaults
+        );
 
         // If it's not possible to withdraw from a subset of the vaults, calculate how much
         // to withdraw from each based on current amounts in vaults vs allocation targets
@@ -341,6 +331,7 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
             uint256 curveVaultUsd = buoy.lpToUsd(curveVault.totalAssets());
             require(curveVaultUsd > leftUsd, "no enough system assets");
             curveVault.withdraw(buoy.usdToLp(leftUsd), address(lg));
+            curve = true;
         }
     }
 
@@ -359,39 +350,34 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
         uint256 maxWithdrawal;
         uint256 leftAmount = amount;
         uint256 vaultIndex;
-        (uint256 totalAssets, uint256[N_COINS] memory vaultAssets) =
-            exposure.getUnifiedAssets(vaults);
+        (uint256 totalAssets, uint256[N_COINS] memory vaultAssets) = exposure.getUnifiedAssets(vaults);
         if (amount > totalAssets) {
             withdrawType = 3;
         } else {
             withdrawType = 2;
             // Get list of vaults order by most exposed => least exposed
-            uint256[N_COINS] memory vaultIndexes =
-                exposure.sortVaultsByDelta(true, totalAssets, vaultAssets, getStablePercents());
+            uint256[N_COINS] memory vaultIndexes = exposure.sortVaultsByDelta(
+                true,
+                totalAssets,
+                vaultAssets,
+                getStablePercents()
+            );
 
             IBuoy buoy = IBuoy(getLifeGuard().getBuoy());
             // Establish how much needs to be withdrawn from each vault
             for (uint256 i; i < N_COINS - 1; i++) {
                 vaultIndex = vaultIndexes[i];
                 // Limit of how much can be withdrawn from this vault
-                maxWithdrawal = vaultAssets[vaultIndex].mul(maxPercentForWithdraw).div(
-                    PERCENTAGE_DECIMAL_FACTOR
-                );
+                maxWithdrawal = vaultAssets[vaultIndex].mul(maxPercentForWithdraw).div(PERCENTAGE_DECIMAL_FACTOR);
                 // If withdraw amount exceeds withdraw capacity, withdraw remainder
                 // from next vault in list...
                 if (leftAmount > maxWithdrawal) {
-                    withdrawalAmounts[vaultIndex] = buoy.singleStableFromUsd(
-                        maxWithdrawal,
-                        int128(vaultIndex)
-                    );
+                    withdrawalAmounts[vaultIndex] = buoy.singleStableFromUsd(maxWithdrawal, int128(vaultIndex));
                     leftAmount = leftAmount.sub(maxWithdrawal);
                     // ...Else, stop. Withdrawal covered by one vault.
                 } else {
                     withdrawType = 1;
-                    withdrawalAmounts[vaultIndex] = buoy.singleStableFromUsd(
-                        leftAmount,
-                        int128(vaultIndex)
-                    );
+                    withdrawalAmounts[vaultIndex] = buoy.singleStableFromUsd(leftAmount, int128(vaultIndex));
                     break;
                 }
             }
@@ -400,12 +386,7 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
 
     /// @notice Calcualte difference between vault current assets and target assets
     /// @param withdrawUsd USD value of withdrawals
-    function getDelta(uint256 withdrawUsd)
-        external
-        view
-        override
-        returns (uint256[N_COINS] memory delta)
-    {
+    function getDelta(uint256 withdrawUsd) external view override returns (uint256[N_COINS] memory delta) {
         address[N_COINS] memory vaults = _controller().vaults();
         delta = exposure.calcRoughDelta(getStablePercents(), vaults, withdrawUsd);
     }
@@ -421,15 +402,14 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
         bool simple = true;
         // First pass uses rough usd calculations to asses the distribution of withdrawals
         // from the vaults...
-        uint256[N_COINS] memory delta =
-            exposure.calcRoughDelta(getStablePercents(), vaults, amount);
+        uint256[N_COINS] memory delta = exposure.calcRoughDelta(getStablePercents(), vaults, amount);
         for (uint256 i = 0; i < N_COINS; i++) {
             IVault vault = IVault(vaults[i]);
             withdrawalAmounts[i] = amount
-                .mul(delta[i])
-                .mul(uint256(10)**IERC20Detailed(vault.token()).decimals())
-                .div(PERCENTAGE_DECIMAL_FACTOR)
-                .div(DEFAULT_DECIMALS_FACTOR);
+            .mul(delta[i])
+            .mul(uint256(10)**IERC20Detailed(vault.token()).decimals())
+            .div(PERCENTAGE_DECIMAL_FACTOR)
+            .div(DEFAULT_DECIMALS_FACTOR);
             if (withdrawalAmounts[i] > vault.totalAssets()) {
                 simple = false;
                 break;
@@ -458,8 +438,7 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
         require(withdrawAmount < state.totalCurrentAssetsUsd, "Withdrawal exceeds system assets");
         state.totalCurrentAssetsUsd = state.totalCurrentAssetsUsd.sub(withdrawAmount);
 
-        StablecoinAllocationState memory stableState =
-            allocation.calcVaultTargetDelta(state, false);
+        StablecoinAllocationState memory stableState = allocation.calcVaultTargetDelta(state, false);
         swapInAmounts = stableState.swapInAmounts;
         swapOutPercents = stableState.swapOutPercents;
     }
@@ -478,8 +457,7 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
         if (allState.needProtocolWithdrawal) {
             for (uint256 i = 0; i < N_COINS; i++) {
                 if (allState.protocolWithdrawalUsd[i] > 0) {
-                    uint256 amount =
-                        buoy.singleStableFromUsd(allState.protocolWithdrawalUsd[i], int128(i));
+                    uint256 amount = buoy.singleStableFromUsd(allState.protocolWithdrawalUsd[i], int128(i));
                     IVault(vaults[i]).withdrawByStrategyIndex(
                         amount,
                         IVault(vaults[i]).vault(),
@@ -489,14 +467,13 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
             }
         }
 
-        bool hasWithdrawal =
-            moveAssetsFromVaultsToLifeguard(
-                vaults,
-                allState.stableState.swapInAmounts,
-                lg,
-                allState.needProtocolWithdrawal ? 0 : allState.protocolExposedIndex,
-                allState.strategyTargetRatio // Only adjust strategy ratio here
-            );
+        bool hasWithdrawal = moveAssetsFromVaultsToLifeguard(
+            vaults,
+            allState.stableState.swapInAmounts,
+            lg,
+            allState.needProtocolWithdrawal ? 0 : allState.protocolExposedIndex,
+            allState.strategyTargetRatio // Only adjust strategy ratio here
+        );
 
         // Withdraw from Curve vault
         uint256 curveDeltaUsd = allState.stableState.curveTargetDeltaUsd;
@@ -510,10 +487,7 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
             //   trigger() to determine if investToCurve needs to be run manually before rebalance
             lg.depositStable(true);
             if (usdAmount < curveDeltaUsd) {
-                IVault(_controller().curveVault()).withdraw(
-                    buoy.usdToLp(curveDeltaUsd.sub(usdAmount)),
-                    address(lg)
-                );
+                IVault(_controller().curveVault()).withdraw(buoy.usdToLp(curveDeltaUsd.sub(usdAmount)), address(lg));
             }
         }
 

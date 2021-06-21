@@ -53,7 +53,7 @@ contract MockCurvePool is ICurve3Pool {
         i;
     }
 
-    function get_dy_underlying(int128 i, int128 j, uint256 dx)
+    function get_dy(int128 i, int128 j, uint256 dx)
         external
         override
         view

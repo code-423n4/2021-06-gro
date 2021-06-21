@@ -20,7 +20,7 @@ interface IHarvest {
 
     function symbol() external view returns (string memory);
 
-    function decimals() external view returns (uint);
+    function decimals() external view returns (uint256);
 }
 
 interface IStake {
@@ -29,12 +29,12 @@ interface IStake {
     function earned(address account) external view returns (uint256);
 
     function lpToken() external view returns (address);
-    
-    function stake(uint amount) external;
+
+    function stake(uint256 amount) external;
 
     function getReward() external;
 
-    function withdraw(uint amount) external;
+    function withdraw(uint256 amount) external;
 
     function exit() external;
 }

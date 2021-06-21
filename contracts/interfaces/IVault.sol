@@ -20,11 +20,7 @@ interface IVault {
 
     function deposit(uint256 amount) external;
 
-    function updatePnL(uint256 amount) external;
-
     function updateStrategyRatio(uint256[] calldata strategyRetios) external;
-
-    function execPnL() external;
 
     function totalAssets() external view returns (uint256);
 
@@ -32,9 +28,7 @@ interface IVault {
 
     function strategyHarvestTrigger(uint256 index, uint256 callCost) external view returns (bool);
 
-    function strategyHarvest(uint256 index, uint256 callCost) external returns (bool);
-
-    function calcPnL() external view returns (uint256 gain, uint256 loss);
+    function strategyHarvest(uint256 index) external returns (bool);
 
     function getStrategyAssets(uint256 index) external view returns (uint256);
 

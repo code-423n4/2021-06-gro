@@ -119,7 +119,13 @@ contract MockLifeGuard is Constants, Controllable, ILifeGuard {
         }
     }
 
-    function withdrawSingleCoin(
+    function withdrawSingleByLiquidity(
+        uint256 i,
+        uint256 minAmount,
+        address recipient
+    ) external override returns (uint256 usdAmount, uint256 amount) {}
+
+    function withdrawSingleByExchange(
         uint256 i,
         uint256 minAmount,
         address recipient
@@ -145,7 +151,7 @@ contract MockLifeGuard is Constants, Controllable, ILifeGuard {
         return whaleDepositAmount;
     }
 
-    function getEmergencyPrice(uint256 token) external view override returns (uint256, uint256) {
+    function getEmergencyPrice(uint256 token) external view returns (uint256, uint256) {
         uint256 ratios = uint256(10)**decimals[token];
         uint256 decimals = uint256(10)**decimals[token];
         return (ratios, decimals);
@@ -232,4 +238,6 @@ contract MockLifeGuard is Constants, Controllable, ILifeGuard {
     }
 
     function investToCurveVaultTrigger() external view override returns (bool) {}
+
+    function getAssets() external view override returns (uint256[3] memory) {}
 }

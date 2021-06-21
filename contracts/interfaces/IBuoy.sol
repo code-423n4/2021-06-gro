@@ -7,24 +7,19 @@ import "./IChainPrice.sol";
 interface IBuoy {
     function safetyCheck() external view returns (bool);
 
+    function updateRatios() external returns (bool);
+
     function lpToUsd(uint256 inAmount) external view returns (uint256);
 
     function usdToLp(uint256 inAmount) external view returns (uint256);
 
-    function getRatio(uint256 token0, uint256 token1) external view returns (uint256, uint256);
-
-    function stableToUsd(uint256[3] calldata inAmount, bool deposit)
-        external
-        view
-        returns (uint256);
+    function stableToUsd(uint256[3] calldata inAmount, bool deposit) external view returns (uint256);
 
     function stableToLp(uint256[3] calldata inAmount, bool deposit) external view returns (uint256);
 
     function singleStableFromLp(uint256 inAmount, int128 i) external view returns (uint256);
 
     function curvePool() external view returns (ICurve3Pool);
-
-    function chainOracle() external view returns (IChainPrice);
 
     function getVirtualPrice() external view returns (uint256);
 

@@ -5,7 +5,7 @@ const MockDAI = artifacts.require('MockDAI');
 const MockUSDC = artifacts.require('MockUSDC');
 const MockUSDT = artifacts.require('MockUSDC');
 const { BN } = web3.utils;
-const { expect } = require('../utils/common-utils');
+const { expect, decodeLogs } = require('../utils/common-utils');
 
 contract('NonRebasingGToken Test', function (accounts) {
     const initBase = new BN('3333333333333333')
@@ -19,30 +19,6 @@ contract('NonRebasingGToken Test', function (accounts) {
         baseNum, daiBaseNum, usdcBaseNum,
         mockDAI, mockUSDC, mockUSDT,
         mockController;
-
-    function decodeLogs(logs, emitter, address, eventName) {
-        let abi;
-        abi = emitter.abi;
-
-        let eventABI = abi.filter(x => x.type === 'event' && x.name === eventName);
-        if (eventABI.length === 0) {
-            throw new Error(`No ABI entry for event '${eventName}'`);
-        } else if (eventABI.length > 1) {
-            throw new Error(`Multiple ABI entries for event '${eventName}', only uniquely named events are supported`);
-        }
-
-        eventABI = eventABI[0];
-
-        // The first topic will equal the hash of the event signature
-        const eventSignature = `${eventName}(${eventABI.inputs.map(input => input.type).join(',')})`;
-        const eventTopic = web3.utils.sha3(eventSignature);
-
-        // Only decode events of type 'EventName'
-        return logs
-            .filter(log => log.topics.length > 0 && log.topics[0] === eventTopic && (!address || log.address === address))
-            .map(log => web3.eth.abi.decodeLog(eventABI.inputs, log.data, log.topics.slice(1)))
-            .map(decoded => ({ event: eventName, args: decoded }));
-    }
 
     beforeEach(async function () {
         mockDAI = await MockDAI.new();
@@ -266,30 +242,18 @@ contract('NonRebasingGToken Test', function (accounts) {
         const BASE = new BN(10).pow(new BN(18));
 
         beforeEach(async function () {
-            // console.log('start getPricePerShare: ' + await gvt.getPricePerShare())
 
             await mockController.mintGToken(
                 gvt.address, new BN(100).mul(baseNum), { from: investor1 });
-            // console.log('getPricePerShare: ' + await gvt.getPricePerShare())
-            // console.log('totalSupply: ' + await gvt.totalSupply())
             await mockController.mintGToken(
                 gvt.address, new BN(200).mul(baseNum), { from: investor2 });
-            // console.log('getPricePerShare: ' + await gvt.getPricePerShare())
-            // console.log('totalSupply: ' + await gvt.totalSupply())
             await mockController.setGTokenTotalAssets(new BN(400).mul(baseNum));
-            // console.log('getPricePerShare: ' + await gvt.getPricePerShare())
-            // console.log('totalSupply: ' + await gvt.totalSupply())
         });
 
         it('getPricePerShare', async function () {
             const ta = await mockController.gTokenTotalAssets()
             const ts = await gvt.totalSupply()
-            // console.log('ta: ' + ta);
-            // console.log('ts: ' + ts);
-            // console.log('ta/ts: ' + ta.mul(baseNum).div(ts));
             const f = ts.mul(baseNum).div(ta);
-            // console.log('f: ' + f);
-            // console.log('baseNum.mul(baseNum).div(f): ' + baseNum.mul(baseNum).div(f));
             return expect(gvt.getPricePerShare()).to.eventually.be.a.bignumber.closeTo(
                 baseNum.mul(ta).div(ts), new BN(1e10));
         });
@@ -298,7 +262,6 @@ contract('NonRebasingGToken Test', function (accounts) {
             const ta = await mockController.gTokenTotalAssets()
             const ts = await gvt.totalSupply()
             const shares = new BN(10).mul(BASE)
-            // console.log('getPricePerShare: ' + await gvt.getPricePerShare())
             return expect(gvt.getShareAssets(shares)).to.eventually.be.a.bignumber.closeTo(
                 shares.mul(ta).div(ts), new BN(1e10));
         });

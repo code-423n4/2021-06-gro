@@ -23,15 +23,14 @@ import "../interfaces/IBuoy.sol";
 ///     LP tokens: 3Crv
 ///     Vaults: DAIVault, USDCVault, USDTVault, 3Crv vault
 ///     Strategy (exposures):
-///         - Harvest Finance:
-///             - Compound
-///             - Idle finance
+///         - Compound
+///         - Idle finance
 ///         - Yearn Generic Lender:
 ///             - Cream
 ///         - CurveXpool:
 ///             - Curve3Pool
-///             - CurveMetaPool (can change)
-///             - Yearn (v1 metapool vault, can change)
+///             - CurveMetaPool
+///             - Yearn 
 contract Allocation is Constants, Controllable, Whitelist, IAllocation {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
@@ -71,8 +70,10 @@ contract Allocation is Constants, Controllable, Whitelist, IAllocation {
         // Curve target is determined by governance (insurance - curveVaultPercent)
         allState.stableState = _calcVaultTargetDelta(sysState, false, true);
         // Calculate exposure delta - difference between targets and current assets
-        (uint256 protocolExposedDeltaUsd, uint256 protocolExposedIndex) =
-            calcProtocolExposureDelta(expState.protocolExposure, sysState);
+        (uint256 protocolExposedDeltaUsd, uint256 protocolExposedIndex) = calcProtocolExposureDelta(
+            expState.protocolExposure,
+            sysState
+        );
         allState.protocolExposedIndex = protocolExposedIndex;
         if (protocolExposedDeltaUsd > allState.stableState.swapInTotalAmountUsd) {
             // If the rebalance cannot be achieved by simply moving assets from one vault, the
@@ -141,18 +142,17 @@ contract Allocation is Constants, Controllable, Whitelist, IAllocation {
                 strategyCurrentUsd = buoy.singleStableToUsd(strategyAssets, i);
             }
             // Determine the USD value of the strategy asset target
-            strategyTargetUsd = allState.stableState.vaultsTargetUsd[i]
-                .mul(allState.strategyTargetRatio[protocolExposedIndex])
-                .div(PERCENTAGE_DECIMAL_FACTOR);
+            strategyTargetUsd = allState
+            .stableState
+            .vaultsTargetUsd[i]
+            .mul(allState.strategyTargetRatio[protocolExposedIndex])
+            .div(PERCENTAGE_DECIMAL_FACTOR);
             // If the strategy is over exposed, assets can be removed
             if (strategyCurrentUsd > strategyTargetUsd) {
                 protocolWithdrawalUsd[i] = strategyCurrentUsd.sub(strategyTargetUsd);
             }
             // If the strategy is empty or under exposed, assets can be added
-            if (
-                protocolWithdrawalUsd[i] > 0 &&
-                protocolWithdrawalUsd[i] < allState.stableState.swapInAmountsUsd[i]
-            ) {
+            if (protocolWithdrawalUsd[i] > 0 && protocolWithdrawalUsd[i] < allState.stableState.swapInAmountsUsd[i]) {
                 protocolWithdrawalUsd[i] = allState.stableState.swapInAmountsUsd[i];
             }
         }
@@ -167,7 +167,6 @@ contract Allocation is Constants, Controllable, Whitelist, IAllocation {
         bool onlySwapOut,
         bool includeCurveVault
     ) private view returns (StablecoinAllocationState memory stableState) {
-        address[N_COINS] memory vaults;
         ILifeGuard lg = ILifeGuard(_controller().lifeGuard());
         IBuoy buoy = IBuoy(lg.getBuoy());
 
@@ -175,18 +174,16 @@ contract Allocation is Constants, Controllable, Whitelist, IAllocation {
         // The rebalance may only be possible by moving assets out of the Curve vault,
         //  as Curve adds exposure to all stablecoins
         if (includeCurveVault && needCurveVault(sysState)) {
-            stableState.curveTargetUsd = sysState
-                .totalCurrentAssetsUsd
-                .mul(sysState.curvePercent)
-                .div(PERCENTAGE_DECIMAL_FACTOR);
+            stableState.curveTargetUsd = sysState.totalCurrentAssetsUsd.mul(sysState.curvePercent).div(
+                PERCENTAGE_DECIMAL_FACTOR
+            );
             // Estimate how much needs to be moved out of the Curve vault
             amountToRebalance = sysState.totalCurrentAssetsUsd.sub(stableState.curveTargetUsd);
             // When establishing current Curve exposures, we include uninvested assets in the lifeguard
             // as part of the Curve vault, otherwise I rebalance could temporarily fix an overexposure,
             // just to have to deal with the same overexposure when the lifeguard assets get invested
             // into the Curve vault.
-            uint256 curveCurrentAssetsUsd =
-                sysState.lifeguardCurrentAssetsUsd.add(sysState.curveCurrentAssetsUsd);
+            uint256 curveCurrentAssetsUsd = sysState.lifeguardCurrentAssetsUsd.add(sysState.curveCurrentAssetsUsd);
             stableState.curveTargetDeltaUsd = curveCurrentAssetsUsd > stableState.curveTargetUsd
                 ? curveCurrentAssetsUsd.sub(stableState.curveTargetUsd)
                 : 0;
@@ -194,10 +191,10 @@ contract Allocation is Constants, Controllable, Whitelist, IAllocation {
             // If we dont have to consider the Curve vault, Remove Curve assets and the part in lifeguard for Curve
             // from the rebalance calculations
             amountToRebalance = sysState
-                .totalCurrentAssetsUsd
-                .sub(sysState.curveCurrentAssetsUsd)
-                .sub(sysState.lifeguardCurrentAssetsUsd)
-                .add(lg.availableUsd());
+            .totalCurrentAssetsUsd
+            .sub(sysState.curveCurrentAssetsUsd)
+            .sub(sysState.lifeguardCurrentAssetsUsd)
+            .add(lg.availableUsd());
         }
 
         // Calculate the strategy amount by vaultAssets * percentOfStrategy
@@ -209,25 +206,18 @@ contract Allocation is Constants, Controllable, Whitelist, IAllocation {
             //   This means that the removal amount gets split throughout the vaults based on
             //   the allocation targets, rather than the difference between the allocation target
             //   and the actual amount of assets in the vault.
-            uint256 vaultTargetUsd =
-                amountToRebalance.mul(sysState.stablePercents[i]).div(PERCENTAGE_DECIMAL_FACTOR);
+            uint256 vaultTargetUsd = amountToRebalance.mul(sysState.stablePercents[i]).div(PERCENTAGE_DECIMAL_FACTOR);
             uint256 vaultTargetAssets;
             if (!onlySwapOut) {
-                vaultTargetAssets = vaultTargetUsd == 0
-                    ? 0
-                    : buoy.singleStableFromUsd(vaultTargetUsd, int128(i));
+                vaultTargetAssets = vaultTargetUsd == 0 ? 0 : buoy.singleStableFromUsd(vaultTargetUsd, int128(i));
                 stableState.vaultsTargetUsd[i] = vaultTargetUsd;
             }
 
             // More than target
             if (sysState.vaultCurrentAssetsUsd[i] > vaultTargetUsd) {
                 if (!onlySwapOut) {
-                    stableState.swapInAmounts[i] = sysState.vaultCurrentAssets[i].sub(
-                        vaultTargetAssets
-                    );
-                    stableState.swapInAmountsUsd[i] = sysState.vaultCurrentAssetsUsd[i].sub(
-                        vaultTargetUsd
-                    );
+                    stableState.swapInAmounts[i] = sysState.vaultCurrentAssets[i].sub(vaultTargetAssets);
+                    stableState.swapInAmountsUsd[i] = sysState.vaultCurrentAssetsUsd[i].sub(vaultTargetUsd);
                     // Make sure that that the change in vault asset is large enough to
                     // justify rebalancing the vault
                     if (invalidDelta(swapThreshold, stableState.swapInAmountsUsd[i])) {
@@ -241,9 +231,7 @@ contract Allocation is Constants, Controllable, Whitelist, IAllocation {
                 }
                 // Less than target
             } else {
-                stableState.swapOutPercents[i] = vaultTargetUsd.sub(
-                    sysState.vaultCurrentAssetsUsd[i]
-                );
+                stableState.swapOutPercents[i] = vaultTargetUsd.sub(sysState.vaultCurrentAssetsUsd[i]);
                 // Make sure that that the change in vault asset is large enough to
                 // justify rebalancing the vault
                 if (invalidDelta(swapThreshold, stableState.swapOutPercents[i])) {
@@ -258,9 +246,9 @@ contract Allocation is Constants, Controllable, Whitelist, IAllocation {
         uint256 percent = PERCENTAGE_DECIMAL_FACTOR;
         for (uint256 i = 0; i < N_COINS - 1; i++) {
             if (stableState.swapOutPercents[i] > 0) {
-                stableState.swapOutPercents[i] = stableState.swapOutPercents[i]
-                    .mul(PERCENTAGE_DECIMAL_FACTOR)
-                    .div(swapOutTotalUsd);
+                stableState.swapOutPercents[i] = stableState.swapOutPercents[i].mul(PERCENTAGE_DECIMAL_FACTOR).div(
+                    swapOutTotalUsd
+                );
                 percent = percent.sub(stableState.swapOutPercents[i]);
             }
         }
@@ -278,14 +266,13 @@ contract Allocation is Constants, Controllable, Whitelist, IAllocation {
         returns (uint256[] memory targetPercent)
     {
         targetPercent = new uint256[](2);
-        uint256 primaryTarget =
-            PERCENTAGE_DECIMAL_FACTOR.mul(PERCENTAGE_DECIMAL_FACTOR).div(
-                PERCENTAGE_DECIMAL_FACTOR.add(utilisationRatio)
-            );
+        uint256 primaryTarget = PERCENTAGE_DECIMAL_FACTOR.mul(PERCENTAGE_DECIMAL_FACTOR).div(
+            PERCENTAGE_DECIMAL_FACTOR.add(utilisationRatio)
+        );
 
         targetPercent[0] = primaryTarget; // Primary
         targetPercent[1] = PERCENTAGE_DECIMAL_FACTOR // Secondary
-            .sub(targetPercent[0]);
+        .sub(targetPercent[0]);
     }
 
     /// @notice Loops over the protocol exposures and calculate the delta between the exposure
@@ -296,21 +283,19 @@ contract Allocation is Constants, Controllable, Whitelist, IAllocation {
     /// @return protocolExposedDeltaUsd Difference between the overExposure and the target protocol exposure.
     ///     By defenition, only one protocol can exceed exposure in the current setup.
     /// @return protocolExposedIndex The index of the corresponding protocol of protocolDelta
-    function calcProtocolExposureDelta(
-        uint256[] memory protocolExposure,
-        SystemState memory sysState
-    ) private pure returns (uint256 protocolExposedDeltaUsd, uint256 protocolExposedIndex) {
+    function calcProtocolExposureDelta(uint256[] memory protocolExposure, SystemState memory sysState)
+        private
+        pure
+        returns (uint256 protocolExposedDeltaUsd, uint256 protocolExposedIndex)
+    {
         for (uint256 i = 0; i < protocolExposure.length; i++) {
             // If the exposure is greater than the rebalance threshold...
-            if (
-                protocolExposedDeltaUsd == 0 && protocolExposure[i] > sysState.rebalanceThreshold
-            ) {
+            if (protocolExposedDeltaUsd == 0 && protocolExposure[i] > sysState.rebalanceThreshold) {
                 // ...Calculate the delta between exposure and target
                 uint256 target = sysState.rebalanceThreshold.sub(sysState.targetBuffer);
-                protocolExposedDeltaUsd = protocolExposure[i]
-                    .sub(target)
-                    .mul(sysState.totalCurrentAssetsUsd)
-                    .div(PERCENTAGE_DECIMAL_FACTOR);
+                protocolExposedDeltaUsd = protocolExposure[i].sub(target).mul(sysState.totalCurrentAssetsUsd).div(
+                    PERCENTAGE_DECIMAL_FACTOR
+                );
                 protocolExposedIndex = i;
             }
         }
@@ -327,12 +312,11 @@ contract Allocation is Constants, Controllable, Whitelist, IAllocation {
     /// @notice Check if Curve vault needs to be considered in rebalance action
     /// @param sysState Struct holding info about system current state
     function needCurveVault(SystemState memory sysState) private view returns (bool) {
-        uint256 currentPercent =
-            sysState
-                .curveCurrentAssetsUsd
-                .add(sysState.lifeguardCurrentAssetsUsd)
-                .mul(PERCENTAGE_DECIMAL_FACTOR)
-                .div(sysState.totalCurrentAssetsUsd);
+        uint256 currentPercent = sysState
+        .curveCurrentAssetsUsd
+        .add(sysState.lifeguardCurrentAssetsUsd)
+        .mul(PERCENTAGE_DECIMAL_FACTOR)
+        .div(sysState.totalCurrentAssetsUsd);
         return currentPercent > curvePercentThreshold;
     }
 }

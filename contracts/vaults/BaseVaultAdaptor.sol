@@ -55,8 +55,6 @@ abstract contract BaseVaultAdaptor is Controllable, Constants, Whitelist, IVault
     uint256 public investThreshold;
     // Used to establish if the strategy debt ratios need to be updated
     uint256 public strategyRatioBuffer;
-    // Last total amount of assets recorded (vault adaptor + vault + strategies)
-    uint256 public lastTotalAssets;
     // How much of total assets should be held in the vault adaptor (%BP)
     uint256 public vaultReserve;
 
@@ -67,6 +65,7 @@ abstract contract BaseVaultAdaptor is Controllable, Constants, Whitelist, IVault
     event LogNewAdaptorInvestThreshold(uint256 threshold);
     event LogNewAdaptorStrategyBuffer(uint256 buffer);
     event LogNewDebtRatios(uint256[] strategyRetios);
+    event LogMigrate(address parent, address child, uint256 amount);
 
     /// @notice Only the underlying vault is allowed to call
     modifier onlyVault() {
@@ -133,23 +132,16 @@ abstract contract BaseVaultAdaptor is Controllable, Constants, Whitelist, IVault
         // Check and update strategies debt ratio
         if (strategiesLength > 1) {
             // Only for stablecoin vaults
-            uint256[] memory targetRatios =
-                IInsurance(_controller().insurance()).getStrategiesTargetRatio();
+            uint256[] memory targetRatios = IInsurance(_controller().insurance()).getStrategiesTargetRatio();
             uint256[] memory currentRatios = getStrategiesDebtRatio();
             bool update;
             for (uint256 i; i < strategiesLength; i++) {
-                if (
-                    currentRatios[i] < targetRatios[i] &&
-                    targetRatios[i].sub(currentRatios[i]) > strategyRatioBuffer
-                ) {
+                if (currentRatios[i] < targetRatios[i] && targetRatios[i].sub(currentRatios[i]) > strategyRatioBuffer) {
                     update = true;
                     break;
                 }
 
-                if (
-                    currentRatios[i] > targetRatios[i] &&
-                    currentRatios[i].sub(targetRatios[i]) > strategyRatioBuffer
-                ) {
+                if (currentRatios[i] > targetRatios[i] && currentRatios[i].sub(targetRatios[i]) > strategyRatioBuffer) {
                     update = true;
                     break;
                 }
@@ -186,7 +178,6 @@ abstract contract BaseVaultAdaptor is Controllable, Constants, Whitelist, IVault
         if (!_withdrawFromAdapter(amount, recipient)) {
             amount = _withdraw(calculateShare(amount), recipient);
         }
-        lastTotalAssets = lastTotalAssets < amount ? 0 : lastTotalAssets.sub(amount);
     }
 
     /// @notice Withdraw assets from vault to vault adaptor
@@ -210,7 +201,6 @@ abstract contract BaseVaultAdaptor is Controllable, Constants, Whitelist, IVault
         if (!_withdrawFromAdapter(amount, recipient)) {
             amount = _withdrawByStrategyOrder(calculateShare(amount), recipient, reversed);
         }
-        lastTotalAssets = lastTotalAssets < amount ? 0 : lastTotalAssets.sub(amount);
     }
 
     /// @notice Withdraw assets from underlying vault, but do so from a specific strategy
@@ -227,16 +217,12 @@ abstract contract BaseVaultAdaptor is Controllable, Constants, Whitelist, IVault
         if (!_withdrawFromAdapter(amount, recipient)) {
             amount = _withdrawByStrategyIndex(calculateShare(amount), recipient, strategyIndex);
         }
-        lastTotalAssets = lastTotalAssets < amount ? 0 : lastTotalAssets.sub(amount);
     }
 
     /// @notice Withdraw assets from the vault adaptor itself
     /// @param amount Amount to withdraw
     /// @param recipient Target recipient
-    function _withdrawFromAdapter(uint256 amount, address recipient)
-        private
-        returns (bool _success)
-    {
+    function _withdrawFromAdapter(uint256 amount, address recipient) private returns (bool _success) {
         uint256 adapterAmount = IERC20(token).balanceOf(address(this));
         if (adapterAmount >= amount) {
             IERC20(token).safeTransfer(recipient, amount);
@@ -244,19 +230,6 @@ abstract contract BaseVaultAdaptor is Controllable, Constants, Whitelist, IVault
         } else {
             return false;
         }
-    }
-
-    /// @notice Calculate gains/loss changes in vault adaptor
-    function calcPnL() external view override returns (uint256 gain, uint256 loss) {
-        // Use totalAsset to ignore unrealised profits
-        uint256 currentTotalAssets = _totalAssets();
-        gain = currentTotalAssets > lastTotalAssets ? currentTotalAssets.sub(lastTotalAssets) : 0;
-        loss = currentTotalAssets < lastTotalAssets ? lastTotalAssets.sub(currentTotalAssets) : 0;
-    }
-
-    /// @notice Update current total assets, disregarding unraalized profits/losses
-    function execPnL() external override onlyWhitelist {
-        lastTotalAssets = _totalAssets();
     }
 
     /// @notice Get total amount invested in strategy
@@ -269,22 +242,11 @@ abstract contract BaseVaultAdaptor is Controllable, Constants, Whitelist, IVault
     /// @param amount Deposit amount
     function deposit(uint256 amount) external override onlyWhitelist {
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
-        depositWithPnL(amount);
-    }
-
-    /// @notice Update vault adapter total assets
-    /// @param amount Amount to add to total assets
-    function updatePnL(uint256 amount) external override onlyWhitelist {
-        depositWithPnL(amount);
     }
 
     /// @notice Set new strategy debt ratios
     /// @param strategyRetios Array of new debt ratios
-    function updateStrategyRatio(uint256[] calldata strategyRetios)
-        external
-        override
-        onlyWhitelist
-    {
+    function updateStrategyRatio(uint256[] calldata strategyRetios) external override onlyWhitelist {
         updateStrategiesDebtRatio(strategyRetios);
         emit LogNewDebtRatios(strategyRetios);
     }
@@ -305,18 +267,27 @@ abstract contract BaseVaultAdaptor is Controllable, Constants, Whitelist, IVault
 
     /// @notice Harvest underlying strategy
     /// @param index Index of strategy
-    /// @param callCost Cost of harvest
-    function strategyHarvest(uint256 index, uint256 callCost)
-        external
-        override
-        onlyWhitelist
-        returns (bool harvested)
-    {
+    function strategyHarvest(uint256 index) external override onlyWhitelist returns (bool harvested) {
         require(index < strategiesLength, "invalid index");
-        if (_strategyHarvestTrigger(index, callCost)) {
-            _strategyHarvest(index);
-            harvested = true;
+        uint256 beforeAssets = vaultTotalAssets();
+        _strategyHarvest(index);
+        uint256 afterAssets = vaultTotalAssets();
+        if (afterAssets > beforeAssets) {
+            _controller().distributeStrategyGainLoss(afterAssets.sub(beforeAssets), 0);
+        } else if (afterAssets < beforeAssets) {
+            _controller().distributeStrategyGainLoss(0, beforeAssets.sub(afterAssets));
         }
+        harvested = true;
+    }
+
+    /// @notice Migrate assets to new vault
+    /// @param child target for migration
+    function migrate(address child) external onlyOwner {
+        require(child != address(0), "migrate: child == 0x");
+        IERC20 _token = IERC20(token);
+        uint256 balance = _token.balanceOf(address(this));
+        _token.safeTransfer(child, balance);
+        emit LogMigrate(address(this), child, balance);
     }
 
     // Virtual functions
@@ -343,17 +314,9 @@ abstract contract BaseVaultAdaptor is Controllable, Constants, Whitelist, IVault
         uint256 index
     ) internal virtual returns (uint256);
 
-    function _strategyHarvestTrigger(uint256 index, uint256 callCost)
-        internal
-        view
-        virtual
-        returns (bool);
+    function _strategyHarvestTrigger(uint256 index, uint256 callCost) internal view virtual returns (bool);
 
-    function getStrategyEstimatedTotalAssets(uint256 index)
-        internal
-        view
-        virtual
-        returns (uint256);
+    function getStrategyEstimatedTotalAssets(uint256 index) internal view virtual returns (uint256);
 
     function getStrategyTotalAssets(uint256 index) internal view virtual returns (uint256);
 
@@ -364,10 +327,6 @@ abstract contract BaseVaultAdaptor is Controllable, Constants, Whitelist, IVault
         return total;
     }
 
-    function depositWithPnL(uint256 amount) private {
-        lastTotalAssets = lastTotalAssets.add(amount);
-    }
-
     function calculateShare(uint256 amount) private view returns (uint256 share) {
         uint256 sharePrice = _getVaultSharePrice();
         share = amount.mul(uint256(10)**decimals).div(sharePrice);
@@ -375,20 +334,9 @@ abstract contract BaseVaultAdaptor is Controllable, Constants, Whitelist, IVault
         share = share < balance ? share : balance;
     }
 
-    /// @notice Withdraw and update vault adaptor total value
-    /// @param amount Total amount to withdraw
-    /// @param recipient Recipient of withdrawal
-    function withdrawWithPnL(uint256 amount, address recipient) private {
-        uint256 withdrawalAmount = _withdraw(calculateShare(amount), recipient);
-        lastTotalAssets = lastTotalAssets < withdrawalAmount
-            ? 0
-            : lastTotalAssets.sub(withdrawalAmount);
-    }
-
     /// @notice Calculate system total assets including estimated profits
     function totalEstimatedAssets() external view returns (uint256) {
-        uint256 total =
-            IERC20(token).balanceOf(address(this)).add(IERC20(token).balanceOf(address(vault)));
+        uint256 total = IERC20(token).balanceOf(address(this)).add(IERC20(token).balanceOf(address(vault)));
         for (uint256 i = 0; i < strategiesLength; i++) {
             total = total.add(getStrategyEstimatedTotalAssets(i));
         }

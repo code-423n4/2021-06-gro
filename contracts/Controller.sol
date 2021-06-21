@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: AGPLv3
 pragma solidity >=0.6.0 <0.7.0;
 
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
+
 import {FixedStablecoins, FixedGTokens} from "./common/FixedContracts.sol";
 import "./common/Whitelist.sol";
+
 import "./interfaces/IBuoy.sol";
+import "./interfaces/IChainPrice.sol";
 import "./interfaces/IController.sol";
 import "./interfaces/IERC20Detailed.sol";
 import "./interfaces/IInsurance.sol";
@@ -11,14 +18,12 @@ import "./interfaces/ILifeGuard.sol";
 import "./interfaces/IPnL.sol";
 import "./interfaces/IToken.sol";
 import "./interfaces/IVault.sol";
-import "./interfaces/IChainPrice.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
+import "./interfaces/IWithdrawHandler.sol";
 
-/// @notice The main hub for Gro protocol - the controller links up the other contracts,
-///     and acts a route for the other contracts to call one another.
+/// @notice The main hub for Gro protocol - The controller links up the other contracts,
+///     and acts a route for the other contracts to call one another. It holds global states
+///     such as paused and emergency. Contracts that depend on the controller implement
+///     Controllable.
 ///
 ///     *****************************************************************************
 ///     System tokens - GTokens:
@@ -57,6 +62,7 @@ contract Controller is Pausable, Ownable, Whitelist, FixedStablecoins, FixedGTok
 
     mapping(address => bool) public safeAddresses; // Some integrations need to be exempt from flashloan checks
     mapping(uint256 => address) public override underlyingVaults; // Protocol stablecoin vaults
+    mapping(address => uint256) public vaultIndexes;
 
     event LogNewWithdrawHandler(address tokens);
     event LogNewDepositHandler(address tokens);
@@ -118,13 +124,16 @@ contract Controller is Pausable, Ownable, Whitelist, FixedStablecoins, FixedGTok
     /// @notice Set system vaults, vault index should match its underlying token
     function setVault(uint256 index, address vault) external onlyOwner {
         require(vault != address(0), "setVault: 0x");
+        require(index < N_COINS, "setVault: !index");
         underlyingVaults[index] = vault;
+        vaultIndexes[vault] = index + 1;
         emit LogNewVault(index, vault);
     }
 
     function setCurveVault(address _curveVault) external onlyOwner {
         require(_curveVault != address(0), "setCurveVault: 0x");
         curveVault = _curveVault;
+        vaultIndexes[_curveVault] = N_COINS + 1;
         emit LogNewCurveVault(_curveVault);
     }
 
@@ -213,6 +222,8 @@ contract Controller is Pausable, Ownable, Whitelist, FixedStablecoins, FixedGTok
         }
     }
 
+    /// @notice Block if not an EOA or whitelisted
+    /// @param sender Address of contract to check
     function eoaOnly(address sender) public override {
         if (preventSmartContracts && !safeAddresses[tx.origin]) {
             require(sender == tx.origin, "EOA only");
@@ -221,38 +232,49 @@ contract Controller is Pausable, Ownable, Whitelist, FixedStablecoins, FixedGTok
 
     /// @notice TotalAssets = lifeguard + stablecoin vaults + LP vault
     function _totalAssets() private view returns (uint256) {
-        uint256 total = ILifeGuard(lifeGuard).totalAssetsUsd();
-        total = total.add(IBuoy(buoy).lpToUsd(IVault(curveVault).totalAssets()));
+        require(IBuoy(buoy).safetyCheck(), "!buoy.safetyCheck");
+        uint256[N_COINS] memory lgAssets = ILifeGuard(lifeGuard).getAssets();
         uint256[N_COINS] memory vaultAssets;
         for (uint256 i = 0; i < N_COINS; i++) {
-            vaultAssets[i] = IVault(underlyingVaults[i]).totalAssets();
+            vaultAssets[i] = lgAssets[i].add(IVault(underlyingVaults[i]).totalAssets());
         }
-        total = total.add(IBuoy(buoy).stableToUsd(vaultAssets, true));
+        uint256 totalLp = IVault(curveVault).totalAssets();
+        totalLp = totalLp.add(IBuoy(buoy).stableToLp(vaultAssets, true));
+        uint256 vp = IBuoy(buoy).getVirtualPrice();
 
-        return total;
+        return totalLp.mul(vp).div(DEFAULT_DECIMALS_FACTOR);
     }
 
+    /// @notice Same as _totalAssets function, but excluding curve vault + 1 stablecoin
+    ///             and uses chianlink as a price oracle
     function _totalAssetsEmergency() private view returns (uint256) {
-        IChainPrice chainPrice = IBuoy(buoy).chainOracle();
+        IChainPrice chainPrice = IChainPrice(buoy);
         uint256 total;
         for (uint256 i = 0; i < N_COINS; i++) {
             if (i != deadCoin) {
                 address tokenAddress = getToken(i);
                 uint256 decimals = getDecimal(i);
                 IERC20 token = IERC20(tokenAddress);
-                uint256 price = chainPrice.getPriceFeed(tokenAddress);
-                uint256 assets =
-                    IVault(underlyingVaults[i]).totalAssets().add(token.balanceOf(lifeGuard));
+                uint256 price = chainPrice.getPriceFeed(i);
+                uint256 assets = IVault(underlyingVaults[i]).totalAssets().add(token.balanceOf(lifeGuard));
                 assets = assets.mul(price).div(CHAINLINK_PRICE_DECIMAL_FACTOR);
-                assets = assets.mul(DEFAULT_DECIMALS_FACTOR.div(decimals));
+                assets = assets.mul(DEFAULT_DECIMALS_FACTOR).div(decimals);
                 total = total.add(assets);
             }
         }
-
         return total;
     }
 
+    /// @notice Set protocol into emergency mode, disabling the use of a give stablecoin.
+    ///             This state assumes:
+    ///                 - Stablecoin of excessively of peg
+    ///                 - Curve3Pool has failed
+    ///             Swapping wil be disabled and the allocation target will be set to
+    ///             100 % for the disabled stablecoin, effectively stopping the system from
+    ///             returning any to the user. Deposit are disable in this mode.
+    /// @param coin Stable coin to disable
     function emergency(uint256 coin) external onlyWhitelist {
+        require(coin < N_COINS, "invalid coin");
         if (!paused()) {
             _pause();
         }
@@ -271,6 +293,10 @@ contract Controller is Pausable, Ownable, Whitelist, FixedStablecoins, FixedGTok
         IPnL(pnl).emergencyPnL();
     }
 
+    /// @notice Recover the system after emergency mode -
+    /// @param allocations New system target allocations
+    /// @dev Will recalculate system assets and atempt to give back any
+    ///     recovered assets to the GVT side
     function restart(uint256[] calldata allocations) external onlyOwner whenPaused {
         _unpause();
         deadCoin = 99;
@@ -280,5 +306,44 @@ contract Controller is Pausable, Ownable, Whitelist, FixedStablecoins, FixedGTok
             IInsurance(insurance).setUnderlyingTokenPercent(i, allocations[i]);
         }
         IPnL(pnl).recover();
+    }
+
+    /// @notice Distribute any gains or losses generated from a harvest
+    /// @param gain harvset gains
+    /// @param loss harvest losses
+    function distributeStrategyGainLoss(uint256 gain, uint256 loss) external override {
+        uint256 index = vaultIndexes[msg.sender];
+        require(index > 0 || index <= N_COINS + 1, "!VaultAdaptor");
+        IPnL ipnl = IPnL(pnl);
+        IBuoy ibuoy = IBuoy(buoy);
+        uint256 gainUsd;
+        uint256 lossUsd;
+        index = index - 1;
+        if (index < N_COINS) {
+            if (gain > 0) {
+                gainUsd = ibuoy.singleStableToUsd(gain, index);
+            } else if (loss > 0) {
+                lossUsd = ibuoy.singleStableToUsd(loss, index);
+            }
+        } else {
+            if (gain > 0) {
+                gainUsd = ibuoy.lpToUsd(gain);
+            } else if (loss > 0) {
+                lossUsd = ibuoy.lpToUsd(loss);
+            }
+        }
+        ipnl.distributeStrategyGainLoss(gainUsd, lossUsd);
+        // Check if curve spot price within tollerance, if so update them
+        if (ibuoy.updateRatios()) {
+            // If the curve ratios were successfully updated, realize system price changes
+            ipnl.distributePriceChange(_totalAssets());
+        }
+    }
+
+    /// @notice Distribute holder bonus after withdrawal,
+    /// @param bonus amount to distribute
+    function distributeHodlerBonus(uint256 bonus) external override {
+        require(IWithdrawHandler(withdrawHandler).validHandler(msg.sender), "!WithdrawHandler");
+        IPnL(pnl).distributeHodlerBonus(bonus);
     }
 }

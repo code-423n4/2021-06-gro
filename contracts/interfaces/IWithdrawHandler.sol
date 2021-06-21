@@ -26,4 +26,6 @@ interface IWithdrawHandler {
     function withdrawAllBalanced(bool pwrd, uint256[3] calldata minAmounts) external;
 
     function utilisationRatioLimitGvt() external returns (uint256);
+
+    function validHandler(address handler) external view returns (bool);
 }

@@ -20,7 +20,7 @@ const { expect, ZERO } = require('../utils/common-utils');
 
 contract('DepositHandler Test', function (accounts) {
 
-	const decimals = ['1000000000000000000', '1000000', '1000000'];
+    const decimals = ['1000000000000000000', '1000000', '1000000'];
     const deployer = accounts[0],
         governance = deployer,
         investor1 = accounts[1],
@@ -50,8 +50,8 @@ contract('DepositHandler Test', function (accounts) {
         mockUSDTVault = await MockVaultAdaptor.new();
         mockCurveVault = await MockVaultAdaptor.new();
 
-		tokens = [mockDAI.address, mockUSDC.address, mockUSDT.address];
-		vaults = [mockDAIVault.address, mockUSDCVault.address, mockUSDTVault.address];
+        tokens = [mockDAI.address, mockUSDC.address, mockUSDT.address];
+        vaults = [mockDAIVault.address, mockUSDCVault.address, mockUSDTVault.address];
         mockLifeGuard = await MockLifeGuard.new();
         mockBuoy = await MockBuoy.new();
         controller = await Controller.new(mockPWRD.address, mockVault.address, tokens, decimals);
@@ -60,7 +60,7 @@ contract('DepositHandler Test', function (accounts) {
         await mockLifeGuard.setStablecoins([mockDAI.address, mockUSDC.address, mockUSDT.address]);
         await mockLifeGuard.setController(controller.address);
 
-        pnl = await PnL.new(mockPWRD.address, mockVault.address);
+        pnl = await PnL.new(mockPWRD.address, mockVault.address, 0, 0);
         pnl.setController(controller.address);
         await controller.setPnL(pnl.address);
 
@@ -219,7 +219,6 @@ contract('DepositHandler Test', function (accounts) {
                 const lpWithSlippage = lp.sub(lp.div(new BN("10000")));
 
                 const usd = await mockBuoy.stableToUsd(investAmount, true);
-                // console.log('usd: ' + usd);
                 //const expectedLpUsdValue = "300022674714477134455";
 
                 await depositHandler.depositGvt(
@@ -230,10 +229,6 @@ contract('DepositHandler Test', function (accounts) {
                 );
 
                 const result = await pnl.calcPnL({ from: controller.address });
-                // console.log('vaultAssets: ' + result[0]);
-                // console.log('pwrdAssets: ' + result[1]);
-                // console.log('controller.totalAssets(): ' + await controller.totalAssets());
-                // console.log('mockLifeGuard.totalAssets(): ' + await mockLifeGuard.totalAssets());
 
                 await expect(controller.totalAssets()).to.eventually.be.a.bignumber.equal(usd);
                 await expect(controller.gTokenTotalAssets({ from: mockVault.address }))
@@ -269,7 +264,6 @@ contract('DepositHandler Test', function (accounts) {
                 const lpWithSlippage = lp.sub(lp.mul(toBN(2)).div(new BN("10000")));
 
                 const usd = await mockBuoy.stableToUsd(investAmount, true);
-                // console.log('usd: ' + usd);
                 //const expectedLpUsdValue = "300022674714477134455";
 
                 await depositHandler.depositGvt(
@@ -280,11 +274,6 @@ contract('DepositHandler Test', function (accounts) {
                 );
 
                 const result = await pnl.calcPnL({ from: controller.address });
-                // console.log('vaultAssets: ' + result[0]);
-                // console.log('pwrdAssets: ' + result[1]);
-                // console.log('controller.totalAssets(): ' + await controller.totalAssets());
-                // console.log('mockLifeGuard.totalAssets(): ' + await mockLifeGuard.totalAssets());
-                // console.log('mockDAIVault balanceOf: ' + await mockDAI.balanceOf(mockDAIVault.address));
 
                 await expect(controller.totalAssets()).to.eventually.be.a.bignumber.closeTo(usd, toBN(5).mul(baseNum));
                 await expect(controller.gTokenTotalAssets({ from: mockVault.address }))
@@ -317,7 +306,6 @@ contract('DepositHandler Test', function (accounts) {
                 const lpWithSlippage = lp.sub(lp.div(new BN("10000")));
 
                 const usd = await mockBuoy.stableToUsd(investAmount, true);
-                // console.log('usd: ' + usd);
                 //const expectedLpUsdValue = "300022674714477134455";
 
                 await mockLifeGuard.setInAmounts(investAmount);
@@ -329,13 +317,7 @@ contract('DepositHandler Test', function (accounts) {
                 );
 
                 const result = await pnl.calcPnL({ from: controller.address });
-                // console.log('vaultAssets: ' + result[0]);
-                // console.log('pwrdAssets: ' + result[1]);
-                // console.log('controller.totalAssets(): ' + await controller.totalAssets());
-                // console.log('mockLifeGuard.totalAssets(): ' + await mockLifeGuard.totalAssets());
 
-                // console.log('gvt: ' + await controller.gvt());
-                // console.log('mockVault: ' + mockVault.address);
 
                 await expect(controller.totalAssets()).to.eventually.be.a.bignumber.equal(usd);
                 await expect(controller.gTokenTotalAssets({ from: mockVault.address }))

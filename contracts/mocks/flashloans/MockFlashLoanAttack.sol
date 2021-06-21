@@ -16,21 +16,18 @@ contract MockFlashLoanAttack {
     address private lifeguard;
     address private controller;
 
-//     function setController(address _controller) external {
-//         controller = _controller;
-//     }
-// 
-//     function setLifeGuard(address _lifeguard) external {
-//         lifeguard = _lifeguard;
-//     }
-// 
-//     function withdraw(bool pwrd, uint256 lpAmount) public {
-//         IController c = IController(controller);
-// 
-//         IWithdrawHandler(c.withdrawHandler()).withdrawByLPToken(
-//             pwrd,
-//             lpAmount,
-//             new uint256[](c.stablecoinsCount())
-//         );
-//     }
+    function setController(address _controller) external {
+        controller = _controller;
+    }
+
+    function setLifeGuard(address _lifeguard) external {
+        lifeguard = _lifeguard;
+    }
+
+    function withdraw(bool pwrd, uint256 lpAmount) public {
+        IController c = IController(controller);
+
+        uint256[3] memory minAmounts;
+        IWithdrawHandler(c.withdrawHandler()).withdrawByLPToken(pwrd, lpAmount, minAmounts);
+    }
 }

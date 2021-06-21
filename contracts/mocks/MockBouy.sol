@@ -15,17 +15,17 @@ import "../common/Constants.sol";
 ///     Sanity check pool against external oracle to ensure
 ///     that pool is healthy by checking pool underlying coin
 ///     ratios against oracle coin price ratios
-contract MockBuoy is IBuoy, Whitelist, Constants {
+contract MockBuoy is IBuoy, IChainPrice, Whitelist, Constants {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
     address[] public stablecoins;
-    IChainPrice public override chainOracle;
     ICurve3Pool public override curvePool;
 
     uint256 constant vp = 1005330723799997871;
     uint256[] public decimals = [18, 6, 6];
     uint256[] vpSingle = [996343755718242128, 994191500557422927, 993764724471177721];
+    uint256[] chainPrices = [10001024, 100000300, 99998869];
     uint256[] public balanced = [30, 30, 40];
 
     function setStablecoins(address[] calldata _stablecoins) external {
@@ -34,10 +34,6 @@ contract MockBuoy is IBuoy, Whitelist, Constants {
 
     function lpToUsd(uint256 inAmount) external view override returns (uint256) {
         return _lpToUsd(inAmount);
-    }
-
-    function setChain(address _oracle) external {
-        chainOracle = IChainPrice(_oracle);
     }
 
     function _lpToUsd(uint256 inAmount) private view returns (uint256) {
@@ -121,16 +117,20 @@ contract MockBuoy is IBuoy, Whitelist, Constants {
         return _singleStableFromLp(usdToLp(inAmount), uint256(i));
     }
 
-    function getRatio(uint256 token0, uint256 token1)
-        external
-        view
-        override
-        returns (uint256, uint256)
-    {}
+    function getRatio(uint256 token0, uint256 token1) external view returns (uint256, uint256) {}
 
-    function safetyCheck() external view override returns (bool) {}
+    function safetyCheck() external view override returns (bool) {
+        return true;
+    }
 
     function getVirtualPrice() external view override returns (uint256) {
         return vp;
     }
+
+    function updateRatios() external override returns (bool) {}
+
+    function getPriceFeed(uint256 i) external view override returns (uint256 _price) {
+        return chainPrices[i];
+    }
+
 }

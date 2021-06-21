@@ -24,8 +24,6 @@ contract MockPnL is Constants, IPnL {
         lastPwrdAssets = _lastPwrdAssets;
     }
 
-    function execPnL(uint256 deductedAssets) public override {}
-
     function setTotalProfit(uint256 _totalProfit) public {
         totalProfit = _totalProfit;
     }
@@ -40,10 +38,6 @@ contract MockPnL is Constants, IPnL {
         override
     {}
 
-    function pnlTrigger() external view override returns (bool) {
-        return false;
-    }
-
     function utilisationRatio() external view override returns (uint256) {
         return
             lastGvtAssets != 0
@@ -51,9 +45,13 @@ contract MockPnL is Constants, IPnL {
                 : 0;
     }
 
-    function increaseWithdrawalBonus(uint256 newBonus) external override {}
-
     function emergencyPnL() external override {}
 
     function recover() external override {}
+
+    function distributeStrategyGainLoss(uint256 gain, uint256 loss) external override {}
+
+    function distributeHodlerBonus(uint256 bonus) external override {}
+
+    function distributePriceChange(uint256 currentTotalAssets) external override {}
 }

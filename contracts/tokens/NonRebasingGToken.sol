@@ -17,17 +17,9 @@ contract NonRebasingGToken is GToken {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
-    event LogTransfer(
-        address indexed sender,
-        address indexed recipient,
-        uint256 indexed amount,
-        uint256 factor
-    );
+    event LogTransfer(address indexed sender, address indexed recipient, uint256 indexed amount, uint256 factor);
 
-    constructor(
-        string memory name,
-        string memory symbol
-    ) public GToken(name, symbol) {}
+    constructor(string memory name, string memory symbol) public GToken(name, symbol) {}
 
     /// @notice Return the base supply of the token - This is similar
     ///     to the original ERC20 totalSupply method for NonRebasingGTokens

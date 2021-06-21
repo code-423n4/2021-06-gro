@@ -19,7 +19,7 @@ const { expect, ZERO } = require('../utils/common-utils');
 
 contract('WithdrawHandler Test', function (accounts) {
 
-	const decimals = ['1000000000000000000', '1000000', '1000000'];
+    const decimals = ['1000000000000000000', '1000000', '1000000'];
     const deployer = accounts[0],
         governance = deployer,
         investor1 = accounts[1],
@@ -60,8 +60,8 @@ contract('WithdrawHandler Test', function (accounts) {
         mockUSDTVault = await MockVaultAdaptor.new();
         mockCurveVault = await MockVaultAdaptor.new();
 
-		tokens = [mockDAI.address, mockUSDC.address, mockUSDT.address];
-		vaults = [mockDAIVault.address, mockUSDCVault.address, mockUSDTVault.address];
+        tokens = [mockDAI.address, mockUSDC.address, mockUSDT.address];
+        vaults = [mockDAIVault.address, mockUSDCVault.address, mockUSDTVault.address];
         controller = await Controller.new(mockPWRD.address, mockVault.address, tokens, decimals);
 
         mockLifeGuard = await MockLifeGuard.new();
@@ -71,7 +71,7 @@ contract('WithdrawHandler Test', function (accounts) {
         await mockLifeGuard.setStablecoins([mockDAI.address, mockUSDC.address, mockUSDT.address]);
         await mockLifeGuard.setController(controller.address);
 
-        pnl = await PnL.new(mockPWRD.address, mockVault.address);
+        pnl = await PnL.new(mockPWRD.address, mockVault.address, 0, 0);
         await pnl.setController(controller.address);
         await controller.setPnL(pnl.address);
 
@@ -220,9 +220,6 @@ contract('WithdrawHandler Test', function (accounts) {
             lp = await mockBuoy.usdToLp(usd);
             const lpWithoutFee = lp.sub(lp.mul(toBN('50')).div(toBN('10000')));
             amounts = await calcWithdrawTokens(lpWithoutFee);
-            // console.log('lp: ' + lp);
-            // console.log('amounts: ' + JSON.stringify(amounts));
-            // console.log('mockVault total supply: ' + await mockVault.totalSupply());
             //add system slippage
 
             await withdrawHandler.setUtilisationRatioLimitGvt(toBN(8500));
@@ -239,9 +236,6 @@ contract('WithdrawHandler Test', function (accounts) {
             const lp = await mockBuoy.usdToLp(usd);
             const amounts = await withdrawHandler.getVaultDeltas(lp);
             await mockLifeGuard.setDepositStableAmount(usd);
-            // console.log('lp: ' + lp);
-            // console.log('amounts: ' + amounts);
-            // console.log('mockVault total supply: ' + await mockVault.totalSupply());
             //add system slippage
             return expect(withdrawHandler.withdrawByLPToken(
                 false,
@@ -265,9 +259,6 @@ contract('WithdrawHandler Test', function (accounts) {
             const lpWithoutFee = lp.sub(lp.mul(toBN('50')).div(toBN('10000')));
             const tokens = await calcWithdrawTokens(lpWithoutFee);
 
-            // console.log('lp: ' + lp);
-            // console.log('lpWithoutFee: ' + lpWithoutFee);
-            // console.log('tokens: ' + tokens);
 
             await withdrawHandler.withdrawByLPToken(false, lp, tokens, { from: investor1 });
 
@@ -280,13 +271,11 @@ contract('WithdrawHandler Test', function (accounts) {
             const vaultUSDCPost = await mockUSDC.balanceOf(mockUSDCVault.address);
             const vaultUSDTPost = await mockUSDT.balanceOf(mockUSDTVault.address);
 
-            // console.log('controller.totalAssets(): ' + await controller.totalAssets());
-            // console.log('controller.gTokenTotalAssets({ from: mockVault.address }): ' + await controller.gTokenTotalAssets({ from: mockVault.address }));
 
             await expect(controller.gTokenTotalAssets({ from: mockVault.address })).to.eventually.be.a.bignumber
-                .closeTo(toBN(500).mul(baseNum), toBN(1).mul(baseNum).div(toBN(10)));
+                .closeTo(toBN(500).mul(baseNum).add(usd.mul(toBN(5)).div(toBN(1000))), toBN(1).mul(baseNum).div(toBN(10)));
             await expect(controller.totalAssets()).to.eventually.be.a.bignumber
-                .closeTo(toBN(500).mul(baseNum).add(usd.mul(toBN(5)).div(toBN(1000))), toBN(6).mul(baseNum).div(toBN(10)));
+                .closeTo(toBN(500).mul(baseNum).add(usd.mul(toBN(5)).div(toBN(1000))), toBN(1).mul(baseNum).div(toBN(10)));
             expect(userDAIPost.sub(userDAIPre)).to.be.a.bignumber.equal(vaultDAIPre.sub(vaultDAIPost));
             expect(userUSDCPost.sub(userUSDCPre)).to.be.a.bignumber.equal(vaultUSDCPre.sub(vaultUSDCPost));
             return expect(userUSDTPost.sub(userUSDTPre)).to.be.a.bignumber.equal(vaultUSDTPre.sub(vaultUSDTPost));
@@ -309,9 +298,6 @@ contract('WithdrawHandler Test', function (accounts) {
             const tokens = await calcWithdrawTokens(lpWithoutFee);
             await mockLifeGuard.setDepositStableAmount(lpWithoutFee);
 
-            // console.log('lp: ' + lp);
-            // console.log('lpWithoutFee: ' + lpWithoutFee);
-            // console.log('tokens: ' + tokens);
 
             await withdrawHandler.withdrawByLPToken(false, lp, tokens, { from: investor1 });
 
@@ -323,13 +309,11 @@ contract('WithdrawHandler Test', function (accounts) {
             const vaultUSDCPost = await mockUSDC.balanceOf(mockUSDCVault.address);
             const vaultUSDTPost = await mockUSDT.balanceOf(mockUSDTVault.address);
 
-            // console.log('controller.totalAssets(): ' + await controller.totalAssets());
-            // console.log('controller.gTokenTotalAssets({ from: mockVault.address }): ' + await controller.gTokenTotalAssets({ from: mockVault.address }));
 
             await expect(controller.gTokenTotalAssets({ from: mockVault.address })).to.eventually.be.a.bignumber
-                .closeTo(toBN(400).mul(baseNum), toBN(1).mul(baseNum).div(toBN(10)));
+                .closeTo(toBN(400).mul(baseNum).add(usd.mul(toBN(5)).div(toBN(1000))), toBN(1).mul(baseNum).div(toBN(10)));
             await expect(controller.totalAssets()).to.eventually.be.a.bignumber
-                .closeTo(toBN(400).mul(baseNum).add(usd.mul(toBN(5)).div(toBN(1000))), toBN(6).mul(baseNum).div(toBN(10)));
+                .closeTo(toBN(400).mul(baseNum).add(usd.mul(toBN(5)).div(toBN(1000))), toBN(1).mul(baseNum).div(toBN(10)));
             expect(userDAIPost.sub(userDAIPre)).to.be.a.bignumber.equal(vaultDAIPre.sub(vaultDAIPost));
             expect(userUSDCPost.sub(userUSDCPre)).to.be.a.bignumber.equal(vaultUSDCPre.sub(vaultUSDCPost));
             return expect(userUSDTPost.sub(userUSDTPre)).to.be.a.bignumber.equal(vaultUSDTPre.sub(vaultUSDTPost));
@@ -395,7 +379,6 @@ contract('WithdrawHandler Test', function (accounts) {
             const initialPwrd = await mockPWRD.balanceOf(investor1);
             const initialUsdc = await mockUSDC.balanceOf(investor1);
             await controller.pause({ from: governance });
-            // console.log()
             await expect(withdrawHandler.withdrawByStablecoin(
                 true, 1, '50000000000000000000', 0, { from: investor1 })
             ).to.eventually.be.fulfilled;
@@ -480,8 +463,6 @@ contract('WithdrawHandler Test', function (accounts) {
             lp = await mockBuoy.usdToLp(amount);
             const lpWithoutFee = lp.sub(lp.mul(toBN('50')).div(toBN('10000')));
             const scAmount = await calcWithdrawToken(lpWithoutFee, 0);
-            // console.log('lp: ' + lp);
-            // console.log('scAmount: ' + scAmount);
             return expect(withdrawHandler.withdrawByStablecoin(
                 false,
                 0,
@@ -495,8 +476,6 @@ contract('WithdrawHandler Test', function (accounts) {
             const amount = toBN(350).mul(baseNum);
             const lp = await mockBuoy.usdToLp(amount);
             const scAmount = await mockLifeGuard.singleStableFromLp(lp, 0);
-            // console.log('lp: ' + lp);
-            // console.log('scAmount: ' + scAmount);
 
             return expect(withdrawHandler.withdrawByStablecoin(
                 false,
@@ -511,47 +490,30 @@ contract('WithdrawHandler Test', function (accounts) {
             const userDAIPre = await mockDAI.balanceOf(investor1);
             const userUSDCPre = await mockUSDC.balanceOf(investor1);
             const userUSDTPre = await mockUSDT.balanceOf(investor1);
-            // console.log('userDAIPre: ' + userDAIPre);
-            // console.log('userUSDCPre: ' + userUSDCPre);
-            // console.log('userUSDTPre: ' + userUSDTPre);
 
             const vaultDAIPre = await mockDAI.balanceOf(mockDAIVault.address);
             const vaultUSDCPre = await mockUSDC.balanceOf(mockUSDCVault.address);
             const vaultUSDTPre = await mockUSDT.balanceOf(mockUSDTVault.address);
-            // console.log('vaultDAIPre: ' + vaultDAIPre);
-            // console.log('vaultUSDCPre: ' + vaultUSDCPre);
-            // console.log('vaultUSDTPre: ' + vaultUSDTPre);
 
             const usd = toBN(100).mul(baseNum);
             const lp = await mockBuoy.usdToLp(usd);
             const lpWithoutFee = lp.sub(lp.mul(toBN('50')).div(toBN('10000')));
             const token = await calcWithdrawToken(lpWithoutFee, 0);
 
-            // console.log('lp: ' + lp);
-            // console.log('lpWithoutFee: ' + lpWithoutFee);
-            // console.log('token: ' + token);
 
             await withdrawHandler.withdrawByStablecoin(false, 0, lp, token, { from: investor1 });
 
             const userDAIPost = await mockDAI.balanceOf(investor1);
             const userUSDCPost = await mockUSDC.balanceOf(investor1);
             const userUSDTPost = await mockUSDT.balanceOf(investor1);
-            // console.log('userDAIPost: ' + userDAIPost);
-            // console.log('userUSDCPost: ' + userUSDCPost);
-            // console.log('userUSDTPost: ' + userUSDTPost);
 
             const vaultDAIPost = await mockDAI.balanceOf(mockDAIVault.address);
             const vaultUSDCPost = await mockUSDC.balanceOf(mockUSDCVault.address);
             const vaultUSDTPost = await mockUSDT.balanceOf(mockUSDTVault.address);
-            // console.log('vaultDAIPost: ' + vaultDAIPost);
-            // console.log('vaultUSDCPost: ' + vaultUSDCPost);
-            // console.log('vaultUSDTPost: ' + vaultUSDTPost);
 
-            // console.log('controller.totalAssets(): ' + await controller.totalAssets());
-            // console.log('controller.gTokenTotalAssets({ from: mockVault.address }): ' + await controller.gTokenTotalAssets({ from: mockVault.address }));
 
             await expect(controller.gTokenTotalAssets({ from: mockVault.address })).to.eventually.be.a.bignumber
-                .closeTo(toBN(500).mul(baseNum), toBN(5).mul(baseNum).div(toBN(10)));
+                .closeTo(toBN(500).mul(baseNum).add(usd.mul(toBN(5)).div(toBN(1000))), toBN(5).mul(baseNum).div(toBN(10)));
             await expect(controller.totalAssets()).to.eventually.be.a.bignumber
                 .closeTo(toBN(500).mul(baseNum).add(usd.mul(toBN(5)).div(toBN(1000))), toBN(5).mul(baseNum).div(toBN(10)));
             expect(userDAIPost.sub(userDAIPre)).to.be.a.bignumber.equal(vaultDAIPre.sub(vaultDAIPost));
@@ -567,25 +529,16 @@ contract('WithdrawHandler Test', function (accounts) {
             const userDAIPre = await mockDAI.balanceOf(investor1);
             const userUSDCPre = await mockUSDC.balanceOf(investor1);
             const userUSDTPre = await mockUSDT.balanceOf(investor1);
-            // console.log('userDAIPre: ' + userDAIPre);
-            // console.log('userUSDCPre: ' + userUSDCPre);
-            // console.log('userUSDTPre: ' + userUSDTPre);
 
             const vaultDAIPre = await mockDAI.balanceOf(mockDAIVault.address);
             const vaultUSDCPre = await mockUSDC.balanceOf(mockUSDCVault.address);
             const vaultUSDTPre = await mockUSDT.balanceOf(mockUSDTVault.address);
-            // console.log('vaultDAIPre: ' + vaultDAIPre);
-            // console.log('vaultUSDCPre: ' + vaultUSDCPre);
-            // console.log('vaultUSDTPre: ' + vaultUSDTPre);
 
             const usd = toBN(200).mul(baseNum);
             const lp = await mockBuoy.usdToLp(usd);
             const lpWithoutFee = lp.sub(lp.mul(toBN('50')).div(toBN('10000')));
             const token = await calcWithdrawToken(lpWithoutFee, 0);
 
-            // console.log('lp: ' + lp);
-            // console.log('lpWithoutFee: ' + lpWithoutFee);
-            // console.log('token: ' + token);
 
             await mockLifeGuard.setInAmounts([token, 0, 0])
             await withdrawHandler.withdrawByStablecoin(false, 0, lp, token, { from: investor1 });
@@ -593,22 +546,14 @@ contract('WithdrawHandler Test', function (accounts) {
             const userDAIPost = await mockDAI.balanceOf(investor1);
             const userUSDCPost = await mockUSDC.balanceOf(investor1);
             const userUSDTPost = await mockUSDT.balanceOf(investor1);
-            // console.log('userDAIPost: ' + userDAIPost);
-            // console.log('userUSDCPost: ' + userUSDCPost);
-            // console.log('userUSDTPost: ' + userUSDTPost);
 
             const vaultDAIPost = await mockDAI.balanceOf(mockDAIVault.address);
             const vaultUSDCPost = await mockUSDC.balanceOf(mockUSDCVault.address);
             const vaultUSDTPost = await mockUSDT.balanceOf(mockUSDTVault.address);
-            // console.log('vaultDAIPost: ' + vaultDAIPost);
-            // console.log('vaultUSDCPost: ' + vaultUSDCPost);
-            // console.log('vaultUSDTPost: ' + vaultUSDTPost);
 
-            // console.log('controller.totalAssets(): ' + await controller.totalAssets());
-            // console.log('controller.gTokenTotalAssets({ from: mockVault.address }): ' + await controller.gTokenTotalAssets({ from: mockVault.address }));
 
             await expect(controller.gTokenTotalAssets({ from: mockVault.address })).to.eventually.be.a.bignumber
-                .closeTo(toBN(400).mul(baseNum), toBN(5).mul(baseNum).div(toBN(10)));
+                .closeTo(toBN(400).mul(baseNum).add(usd.mul(toBN(5)).div(toBN(1000))), toBN(5).mul(baseNum).div(toBN(10)));
             await expect(controller.totalAssets()).to.eventually.be.a.bignumber
                 .closeTo(toBN(400).mul(baseNum).add(usd.mul(toBN(5)).div(toBN(1000))), toBN(5).mul(baseNum).div(toBN(10)));
             expect(userDAIPost.sub(userDAIPre)).to.be.a.bignumber.equal(vaultDAIPre.sub(vaultDAIPost));
@@ -690,50 +635,32 @@ contract('WithdrawHandler Test', function (accounts) {
             const userDAIPre = await mockDAI.balanceOf(investor2);
             const userUSDCPre = await mockUSDC.balanceOf(investor2);
             const userUSDTPre = await mockUSDT.balanceOf(investor2);
-            // console.log('userDAIPre: ' + userDAIPre);
-            // console.log('userUSDCPre: ' + userUSDCPre);
-            // console.log('userUSDTPre: ' + userUSDTPre);
 
             const vaultDAIPre = await mockDAI.balanceOf(mockDAIVault.address);
             const vaultUSDCPre = await mockUSDC.balanceOf(mockUSDCVault.address);
             const vaultUSDTPre = await mockUSDT.balanceOf(mockUSDTVault.address);
-            // console.log('vaultDAIPre: ' + vaultDAIPre);
-            // console.log('vaultUSDCPre: ' + vaultUSDCPre);
-            // console.log('vaultUSDTPre: ' + vaultUSDTPre);
 
             const usd = await mockVault.getAssets(investor2);
             lp = await mockBuoy.usdToLp(usd);
             const lpWithoutFee = lp.sub(lp.mul(toBN('50')).div(toBN('10000')));
             const token = await calcWithdrawToken(lpWithoutFee, 0);
 
-            // console.log('lp: ' + lp);
-            // console.log('lpWithoutFee: ' + lpWithoutFee);
-            // console.log('token: ' + token);
 
             await withdrawHandler.withdrawAllSingle(false, 0, token, { from: investor2 });
 
             const userDAIPost = await mockDAI.balanceOf(investor2);
             const userUSDCPost = await mockUSDC.balanceOf(investor2);
             const userUSDTPost = await mockUSDT.balanceOf(investor2);
-            // console.log('userDAIPost: ' + userDAIPost);
-            // console.log('userUSDCPost: ' + userUSDCPost);
-            // console.log('userUSDTPost: ' + userUSDTPost);
 
             const vaultDAIPost = await mockDAI.balanceOf(mockDAIVault.address);
             const vaultUSDCPost = await mockUSDC.balanceOf(mockUSDCVault.address);
             const vaultUSDTPost = await mockUSDT.balanceOf(mockUSDTVault.address);
-            // console.log('vaultDAIPost: ' + vaultDAIPost);
-            // console.log('vaultUSDCPost: ' + vaultUSDCPost);
-            // console.log('vaultUSDTPost: ' + vaultUSDTPost);
 
             const userGvtPost = await mockVault.getAssets(investor2);
-            // console.log('userGvtPost: ' + userGvtPost);
 
-            // console.log('controller.totalAssets(): ' + await controller.totalAssets());
-            // console.log('controller.gTokenTotalAssets({ from: mockVault.address }): ' + await controller.gTokenTotalAssets({ from: mockVault.address }));
 
             await expect(controller.gTokenTotalAssets({ from: mockVault.address })).to.eventually.be.a.bignumber
-                .closeTo(toBN(300).mul(baseNum), toBN(5).mul(baseNum).div(toBN(10)));
+                .closeTo(toBN(300).mul(baseNum).add(usd.mul(toBN(5)).div(toBN(1000))), toBN(5).mul(baseNum).div(toBN(10)));
             await expect(controller.totalAssets()).to.eventually.be.a.bignumber
                 .closeTo(toBN(300).mul(baseNum).add(usd.mul(toBN(5)).div(toBN(1000))), toBN(5).mul(baseNum).div(toBN(10)));
             expect(userDAIPost.sub(userDAIPre)).to.be.a.bignumber.equal(vaultDAIPre.sub(vaultDAIPost));
@@ -766,25 +693,16 @@ contract('WithdrawHandler Test', function (accounts) {
             const userDAIPre = await mockDAI.balanceOf(investor2);
             const userUSDCPre = await mockUSDC.balanceOf(investor2);
             const userUSDTPre = await mockUSDT.balanceOf(investor2);
-            // console.log('userDAIPre: ' + userDAIPre);
-            // console.log('userUSDCPre: ' + userUSDCPre);
-            // console.log('userUSDTPre: ' + userUSDTPre);
 
             const vaultDAIPre = await mockDAI.balanceOf(mockDAIVault.address);
             const vaultUSDCPre = await mockUSDC.balanceOf(mockUSDCVault.address);
             const vaultUSDTPre = await mockUSDT.balanceOf(mockUSDTVault.address);
-            // console.log('vaultDAIPre: ' + vaultDAIPre);
-            // console.log('vaultUSDCPre: ' + vaultUSDCPre);
-            // console.log('vaultUSDTPre: ' + vaultUSDTPre);
 
             const usd = toBN(200).mul(baseNum);
             lp = await mockBuoy.usdToLp(usd);
             const lpWithoutFee = lp.sub(lp.mul(toBN('50')).div(toBN('10000')));
             const token = await calcWithdrawToken(lpWithoutFee, 0);
 
-            // console.log('lp: ' + lp);
-            // console.log('lpWithoutFee: ' + lpWithoutFee);
-            // console.log('token: ' + token);
 
             await mockLifeGuard.setInAmounts([token, 0, 0])
             await withdrawHandler.withdrawAllSingle(false, 0, token, { from: investor2 });
@@ -792,25 +710,16 @@ contract('WithdrawHandler Test', function (accounts) {
             const userDAIPost = await mockDAI.balanceOf(investor2);
             const userUSDCPost = await mockUSDC.balanceOf(investor2);
             const userUSDTPost = await mockUSDT.balanceOf(investor2);
-            // console.log('userDAIPost: ' + userDAIPost);
-            // console.log('userUSDCPost: ' + userUSDCPost);
-            // console.log('userUSDTPost: ' + userUSDTPost);
 
             const vaultDAIPost = await mockDAI.balanceOf(mockDAIVault.address);
             const vaultUSDCPost = await mockUSDC.balanceOf(mockUSDCVault.address);
             const vaultUSDTPost = await mockUSDT.balanceOf(mockUSDTVault.address);
-            // console.log('vaultDAIPost: ' + vaultDAIPost);
-            // console.log('vaultUSDCPost: ' + vaultUSDCPost);
-            // console.log('vaultUSDTPost: ' + vaultUSDTPost);
 
             const userGvtPost = await mockVault.getAssets(investor2);
-            // console.log('userGvtPost: ' + userGvtPost);
 
-            // console.log('controller.totalAssets(): ' + await controller.totalAssets());
-            // console.log('controller.gTokenTotalAssets({ from: mockVault.address }): ' + await controller.gTokenTotalAssets({ from: mockVault.address }));
 
             await expect(controller.gTokenTotalAssets({ from: mockVault.address })).to.eventually.be.a.bignumber
-                .closeTo(toBN(300).mul(baseNum), toBN(5).mul(baseNum).div(toBN(10)));
+                .closeTo(toBN(300).mul(baseNum).add(usd.mul(toBN(5)).div(toBN(1000))), toBN(5).mul(baseNum).div(toBN(10)));
             await expect(controller.totalAssets()).to.eventually.be.a.bignumber
                 .closeTo(toBN(300).mul(baseNum).add(usd.mul(toBN(5)).div(toBN(1000))), toBN(5).mul(baseNum).div(toBN(10)));
             expect(userDAIPost.sub(userDAIPre)).to.be.a.bignumber.equal(vaultDAIPre.sub(vaultDAIPost));
@@ -900,52 +809,34 @@ contract('WithdrawHandler Test', function (accounts) {
             const userDAIPre = await mockDAI.balanceOf(investor2);
             const userUSDCPre = await mockUSDC.balanceOf(investor2);
             const userUSDTPre = await mockUSDT.balanceOf(investor2);
-            // console.log('userDAIPre: ' + userDAIPre);
-            // console.log('userUSDCPre: ' + userUSDCPre);
-            // console.log('userUSDTPre: ' + userUSDTPre);
 
             const vaultDAIPre = await mockDAI.balanceOf(mockDAIVault.address);
             const vaultUSDCPre = await mockUSDC.balanceOf(mockUSDCVault.address);
             const vaultUSDTPre = await mockUSDT.balanceOf(mockUSDTVault.address);
-            // console.log('vaultDAIPre: ' + vaultDAIPre);
-            // console.log('vaultUSDCPre: ' + vaultUSDCPre);
-            // console.log('vaultUSDTPre: ' + vaultUSDTPre);
 
             const usd = await mockVault.getAssets(investor2);
             lp = await mockBuoy.usdToLp(usd);
             const lpWithoutFee = lp.sub(lp.mul(toBN('50')).div(toBN('10000')));
             const tokens = await calcWithdrawTokens(lpWithoutFee);
 
-            // console.log('lp: ' + lp);
-            // console.log('lpWithoutFee: ' + lpWithoutFee);
-            // console.log('tokens: ' + tokens);
 
             await withdrawHandler.withdrawAllBalanced(false, tokens, { from: investor2 });
 
             const userDAIPost = await mockDAI.balanceOf(investor2);
             const userUSDCPost = await mockUSDC.balanceOf(investor2);
             const userUSDTPost = await mockUSDT.balanceOf(investor2);
-            // console.log('userDAIPost: ' + userDAIPost);
-            // console.log('userUSDCPost: ' + userUSDCPost);
-            // console.log('userUSDTPost: ' + userUSDTPost);
 
             const vaultDAIPost = await mockDAI.balanceOf(mockDAIVault.address);
             const vaultUSDCPost = await mockUSDC.balanceOf(mockUSDCVault.address);
             const vaultUSDTPost = await mockUSDT.balanceOf(mockUSDTVault.address);
-            // console.log('vaultDAIPost: ' + vaultDAIPost);
-            // console.log('vaultUSDCPost: ' + vaultUSDCPost);
-            // console.log('vaultUSDTPost: ' + vaultUSDTPost);
 
             const userGvtPost = await mockVault.getAssets(investor2);
-            // console.log('userGvtPost: ' + userGvtPost);
 
-            // console.log('controller.totalAssets(): ' + await controller.totalAssets());
-            // console.log('controller.gTokenTotalAssets({ from: mockVault.address }): ' + await controller.gTokenTotalAssets({ from: mockVault.address }));
 
             await expect(controller.gTokenTotalAssets({ from: mockVault.address })).to.eventually.be.a.bignumber
-                .closeTo(toBN(1800).mul(baseNum), toBN(5).mul(baseNum).div(toBN(10)));
+                .closeTo(toBN(1800).mul(baseNum).add(usd.mul(toBN(5)).div(toBN(1000))), toBN(5).mul(baseNum).div(toBN(10)));
             await expect(controller.totalAssets()).to.eventually.be.a.bignumber
-                .closeTo(toBN(1800).mul(baseNum).add(usd.mul(toBN(5)).div(toBN(1000))), toBN(2).mul(baseNum));
+                .closeTo(toBN(1800).mul(baseNum).add(usd.mul(toBN(5)).div(toBN(1000))), toBN(5).mul(baseNum).div(toBN(10)));
             expect(userDAIPost.sub(userDAIPre)).to.be.a.bignumber.equal(vaultDAIPre.sub(vaultDAIPost));
             expect(userUSDCPost.sub(userUSDCPre)).to.be.a.bignumber.equal(vaultUSDCPre.sub(vaultUSDCPost));
             expect(userUSDTPost.sub(userUSDTPre)).to.be.a.bignumber.equal(vaultUSDTPre.sub(vaultUSDTPost));
@@ -974,16 +865,10 @@ contract('WithdrawHandler Test', function (accounts) {
             const userDAIPre = await mockDAI.balanceOf(investor2);
             const userUSDCPre = await mockUSDC.balanceOf(investor2);
             const userUSDTPre = await mockUSDT.balanceOf(investor2);
-            // console.log('userDAIPre: ' + userDAIPre);
-            // console.log('userUSDCPre: ' + userUSDCPre);
-            // console.log('userUSDTPre: ' + userUSDTPre);
 
             const vaultDAIPre = await mockDAI.balanceOf(mockDAIVault.address);
             const vaultUSDCPre = await mockUSDC.balanceOf(mockUSDCVault.address);
             const vaultUSDTPre = await mockUSDT.balanceOf(mockUSDTVault.address);
-            // console.log('vaultDAIPre: ' + vaultDAIPre);
-            // console.log('vaultUSDCPre: ' + vaultUSDCPre);
-            // console.log('vaultUSDTPre: ' + vaultUSDTPre);
 
             await controller.setBigFishThreshold(1, 0);
 
@@ -993,36 +878,24 @@ contract('WithdrawHandler Test', function (accounts) {
             const tokens = await calcWithdrawTokens(lpWithoutFee);
             await mockLifeGuard.setDepositStableAmount(lpWithoutFee);
 
-            // console.log('lp: ' + lp);
-            // console.log('lpWithoutFee: ' + lpWithoutFee);
-            // console.log('tokens: ' + tokens);
 
             await withdrawHandler.withdrawAllBalanced(false, tokens, { from: investor2 });
 
             const userDAIPost = await mockDAI.balanceOf(investor2);
             const userUSDCPost = await mockUSDC.balanceOf(investor2);
             const userUSDTPost = await mockUSDT.balanceOf(investor2);
-            // console.log('userDAIPost: ' + userDAIPost);
-            // console.log('userUSDCPost: ' + userUSDCPost);
-            // console.log('userUSDTPost: ' + userUSDTPost);
 
             const vaultDAIPost = await mockDAI.balanceOf(mockDAIVault.address);
             const vaultUSDCPost = await mockUSDC.balanceOf(mockUSDCVault.address);
             const vaultUSDTPost = await mockUSDT.balanceOf(mockUSDTVault.address);
-            // console.log('vaultDAIPost: ' + vaultDAIPost);
-            // console.log('vaultUSDCPost: ' + vaultUSDCPost);
-            // console.log('vaultUSDTPost: ' + vaultUSDTPost);
 
             const userGvtPost = await mockVault.getAssets(investor2);
-            // console.log('userGvtPost: ' + userGvtPost);
 
-            // console.log('controller.totalAssets(): ' + await controller.totalAssets());
-            // console.log('controller.gTokenTotalAssets({ from: mockVault.address }): ' + await controller.gTokenTotalAssets({ from: mockVault.address }));
 
             await expect(controller.gTokenTotalAssets({ from: mockVault.address })).to.eventually.be.a.bignumber
-                .closeTo(toBN(1800).mul(baseNum), toBN(5).mul(baseNum).div(toBN(10)));
+                .closeTo(toBN(1800).mul(baseNum).add(usd.mul(toBN(5)).div(toBN(1000))), toBN(5).mul(baseNum).div(toBN(10)));
             await expect(controller.totalAssets()).to.eventually.be.a.bignumber
-                .closeTo(toBN(1800).mul(baseNum).add(usd.mul(toBN(5)).div(toBN(1000))), toBN(2).mul(baseNum));
+                .closeTo(toBN(1800).mul(baseNum).add(usd.mul(toBN(5)).div(toBN(1000))), toBN(5).mul(baseNum).div(toBN(10)));
             expect(userDAIPost.sub(userDAIPre)).to.be.a.bignumber.equal(vaultDAIPre.sub(vaultDAIPost));
             expect(userUSDCPost.sub(userUSDCPre)).to.be.a.bignumber.equal(vaultUSDCPre.sub(vaultUSDCPost));
             expect(userUSDTPost.sub(userUSDTPre)).to.be.a.bignumber.equal(vaultUSDTPre.sub(vaultUSDTPost));

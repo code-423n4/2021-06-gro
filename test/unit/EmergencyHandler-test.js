@@ -12,7 +12,6 @@ const MockLifeGuard = artifacts.require('MockLifeGuard');
 const MockBuoy = artifacts.require('MockBuoy');
 const MockLPToken = artifacts.require('MockLPToken');
 const PnL = artifacts.require('PnL');
-const MockChainPrice = artifacts.require('MockChainPrice');
 const MockInsurance = artifacts.require('MockInsurance')
 const { BN, toBN, isTopic } = require('web3-utils');
 const { constants } = require('../utils/constants');
@@ -31,7 +30,7 @@ contract('EmergencyHandler Test', function (accounts) {
 
     let controller, mockVault, mockPWRD, mockLifeGuard, mockBuoy, pnl, mockInsurance, withdrawHandler,
         daiBaseNum, usdcBaseNum, emergencyHandler,
-        mockDAI, mockUSDC, mockUSDT, mockLPToken, mockChain,
+        mockDAI, mockUSDC, mockUSDT, mockLPToken,
         mockDAIVault, mockUSDCVault, mockUSDTVault, mockCurveVault;
 
     async function calcWithdrawTokens(lpAmount, slippage = 1) {
@@ -60,21 +59,18 @@ contract('EmergencyHandler Test', function (accounts) {
         mockUSDCVault = await MockVaultAdaptor.new();
         mockUSDTVault = await MockVaultAdaptor.new();
         mockCurveVault = await MockVaultAdaptor.new();
-        mockChain = await MockChainPrice.new();
-		tokens = [mockDAI.address, mockUSDC.address, mockUSDT.address];
-		vaults = [mockDAIVault.address, mockUSDCVault.address, mockUSDTVault.address];
+        tokens = [mockDAI.address, mockUSDC.address, mockUSDT.address];
+        vaults = [mockDAIVault.address, mockUSDCVault.address, mockUSDTVault.address];
 
         controller = await Controller.new(mockPWRD.address, mockVault.address, tokens, decimals);
         mockLifeGuard = await MockLifeGuard.new();
         mockBuoy = await MockBuoy.new();
-        await mockBuoy.setChain(mockChain.address);
         await mockLifeGuard.setBuoy(mockBuoy.address);
         await controller.setLifeGuard(mockLifeGuard.address);
         await mockLifeGuard.setStablecoins([mockDAI.address, mockUSDC.address, mockUSDT.address]);
         await mockLifeGuard.setController(controller.address);
-        await mockChain.setTokens(tokens);
 
-        pnl = await PnL.new(mockPWRD.address, mockVault.address);
+        pnl = await PnL.new(mockPWRD.address, mockVault.address, 0, 0);
         pnl.setController(controller.address);
         await controller.setPnL(pnl.address);
 
@@ -115,7 +111,7 @@ contract('EmergencyHandler Test', function (accounts) {
         emergencyHandler = await EmergencyHandler.new(
             mockPWRD.address,
             mockVault.address,
-            mockChain.address,
+            mockBuoy.address,
             vaults,
             tokens,
             decimals
@@ -159,10 +155,6 @@ contract('EmergencyHandler Test', function (accounts) {
 
     describe('Emergency Withdrawals', function () {
         beforeEach(async function () {
-            // console.log('-----------------before')
-            // console.log('daiVault ' + await mockDAIVault.totalAssets());
-            // console.log('usdcVault ' + await mockUSDCVault.totalAssets());
-            // console.log('usdtVault ' + await mockUSDTVault.totalAssets());
             let investAmount = [
                 toBN(100).mul(daiBaseNum),
                 toBN(100).mul(usdcBaseNum),
@@ -201,10 +193,6 @@ contract('EmergencyHandler Test', function (accounts) {
                 ZERO,
                 { from: investor2 }
             );
-            // console.log('----------------after')
-            // console.log('daiVault ' + await mockDAIVault.totalAssets());
-            // console.log('usdcVault ' + await mockUSDCVault.totalAssets());
-            // console.log('usdtVault ' + await mockUSDTVault.totalAssets());
         })
 
         it('Should not be able to deposit when the system is paused', async function () {
@@ -257,10 +245,6 @@ contract('EmergencyHandler Test', function (accounts) {
             const lpWithoutFee = lp.sub(lp.mul(toBN('50')).div(toBN('10000')));
             const tokens = await calcWithdrawTokens(lpWithoutFee);
 
-            // console.log('lp: ' + lp);
-            // console.log('lpWithoutFee: ' + lpWithoutFee);
-            // console.log('tokens: ' + tokens);
-
             await controller.pause({ from: governance });
             await withdrawHandler.withdrawByLPToken(false, lp, tokens, { from: investor1 });
 
@@ -272,9 +256,6 @@ contract('EmergencyHandler Test', function (accounts) {
             const vaultDAIPost = await mockDAI.balanceOf(mockDAIVault.address);
             const vaultUSDCPost = await mockUSDC.balanceOf(mockUSDCVault.address);
             const vaultUSDTPost = await mockUSDT.balanceOf(mockUSDTVault.address);
-
-            // console.log('controller.totalAssets(): ' + await controller.totalAssets());
-            // console.log('controller.gTokenTotalAssets({ from: mockVault.address }): ' + await controller.gTokenTotalAssets({ from: mockVault.address }));
 
             const expectedAmount = toBN(2300) // 2400 - 100 : deposit amount - withdrawAmount
             await expect(controller.gTokenTotalAssets({ from: mockVault.address })).to.eventually.be.a.bignumber
@@ -303,10 +284,6 @@ contract('EmergencyHandler Test', function (accounts) {
             const tokens = await calcWithdrawTokens(lpWithoutFee);
             await mockLifeGuard.setDepositStableAmount(lpWithoutFee);
 
-            // console.log('lp: ' + lp);
-            // console.log('lpWithoutFee: ' + lpWithoutFee);
-            // console.log('tokens: ' + tokens);
-
             await controller.pause({ from: governance });
             await withdrawHandler.withdrawByLPToken(false, lp, tokens, { from: investor1 });
 
@@ -317,9 +294,6 @@ contract('EmergencyHandler Test', function (accounts) {
             const vaultDAIPost = await mockDAI.balanceOf(mockDAIVault.address);
             const vaultUSDCPost = await mockUSDC.balanceOf(mockUSDCVault.address);
             const vaultUSDTPost = await mockUSDT.balanceOf(mockUSDTVault.address);
-
-            // console.log('controller.totalAssets(): ' + await controller.totalAssets());
-            // console.log('controller.gTokenTotalAssets({ from: mockVault.address }): ' + await controller.gTokenTotalAssets({ from: mockVault.address }));
 
             const expectedAmount = toBN(2200) // 2400 - 200 : deposit amount - withdrawAmount
             await expect(controller.gTokenTotalAssets({ from: mockVault.address })).to.eventually.be.a.bignumber
@@ -339,7 +313,6 @@ contract('EmergencyHandler Test', function (accounts) {
             const userGvtPre = await mockVault.balanceOf(investor1);
 
             const usd = toBN(100).mul(baseNum);
-            //const lp = await mockBuoy.usdToLp(usd);
 
             await mockUSDT.approve(mockUSDTVault.address, new BN(10000).mul(usdtBaseNum), { from: investor1 });
             await mockLifeGuard.setInAmounts([usd, 0, 0]);
@@ -347,9 +320,6 @@ contract('EmergencyHandler Test', function (accounts) {
 
             const userUSDTPost = await mockUSDT.balanceOf(investor1);
             const userGvtPost = await mockVault.balanceOf(investor1);
-
-            // console.log('controller.totalAssets(): ' + await controller.totalAssets());
-            // console.log('controller.gTokenTotalAssets({ from: mockVault.address }): ' + await controller.gTokenTotalAssets({ from: mockVault.address }));
 
             await expect(userGvtPre).to.be.a.bignumber.greaterThan('0');
             await expect(userGvtPost).to.be.a.bignumber.lessThan(userGvtPre);
@@ -372,13 +342,9 @@ contract('EmergencyHandler Test', function (accounts) {
             const userUSDTPost = await mockUSDT.balanceOf(investor1);
             const userGvtPost = await mockVault.balanceOf(investor1);
 
-            // console.log('controller.totalAssets(): ' + await controller.totalAssets());
-            // console.log('controller.gTokenTotalAssets({ from: mockVault.address }): ' + await controller.gTokenTotalAssets({ from: mockVault.address }));
 
             await expect(userGvtPre).to.be.a.bignumber.greaterThan('0');
             await expect(userGvtPost).to.be.a.bignumber.equal('0');
-            // console.log(userUSDTPre.toString())
-            // console.log(userUSDTPost.toString())
             return expect(userUSDTPost.sub(userUSDTPre)).to.be.a.bignumber.closeTo(toBN('300')
                 .mul(usdtBaseNum), toBN('5').mul(usdtBaseNum));
         })

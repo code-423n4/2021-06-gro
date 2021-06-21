@@ -73,8 +73,7 @@ This repo will be made public before the start of the contest. (C4 delete this l
 [ ⭐️ SPONSORS ADD INFO HERE ]
 
 
-
-# Yield contest details
+# Gro Protocol Code Arena contest details
 
 | Glossary| |
 |-------------------------------|------------------------------------------------------|
@@ -86,15 +85,20 @@ This repo will be made public before the start of the contest. (C4 delete this l
 | Virtual price| USD price of LP token |
 | Yearn Vault or yVault| Stable coin vault that invests into underlying strategies in order to generate yield |
 | Sardine, Tuna, Whale| Deposit/Withdrawal sizes ranging from small to large |
-# Contest scoping
 
+# Contest Scope
+
+This contest is open for two weeks to give wardens time to understand the protocol properly. Submissions can only be made in the second week of the contest. Representatives from gro will be available in the Code Arena Discord to answer any questions during the contest period. The focus for the contest is to try and find any logic errors or ways to drain funds from the protocol in a way that is advantageous for an attacker at the expense of users with funds invested in the protocol. We are NOT looking for gas savings in this contest. Wardens should assume that governance variables are set sensibly (unless they can find a way to change the value of a governance variable, and not counting social engineering approaches for this). 
 
 ## Protocol overview
 
 Gro protocol is a yield aggregator built on top of a tranche.
-The aim of gro protocol is to offer high yields for users who are willing to take on more risk, and a safer alternative for user who are risk averse. The protocol is able to do so by ensuring that any one of its portfolios exposures, be that to underlying assets or external defi protocol is kept within a certain threshold.
+
+The aim of gro protocol is to offer high yields for users who are willing to take on more risk, and a safer alternative for user who are risk averse. The protocol is able to do so by ensuring that any one of its portfolios exposures, be that to underlying assets or external defi protocols, are kept within a certain threshold.
+
  - PWRD: 
  A rebasing, yield generating stable coin pegged to the dollar. Its main feature is insurance against any individual protocol/stable coin failure, which it gets from the GVT. In return for this insurance, PWRD hands over part of its yield to GVT. 
+
  - GVT: 
 The risk bearing asset, taking on the risk from PWRD in return for part of PWRD's yield. Unlike PWRD, GVT is not a rebasing stable coin. 
 
@@ -106,11 +110,11 @@ As profit and loss affects the exposures in the system, it has to measure its ch
 
 The system will however try to mitigate this from happening by trying to balance itself whenever it invests or removes assets (large user deposits/withdrawals and system investments) by determining the difference between the target allocations, and the actual assets in the system (this is referred to as the delta), which is used as a basis for understanding how much of each asset needs to be added or removed from the system, continuously pushing it towards a balanced state.
 
-This is all achieved by utilizing curve as a swapping lyaer, meaning that the system can make decisions on what assets to move in and out independent of what assets the end user deposits/withdraws.
+This is all achieved by utilizing Curve as a swapping layer, meaning that the system can make decisions on what assets to move in and out independent of what assets the end user deposits/withdraws.
 
 ## Smart Contracts
 
-All the contracts in this section are to be reviewed. Any contracts not in this list are to be ignored.
+All the contracts in this section are to be reviewed. Any contracts not in this list are to be ignored for this contest.
 A further breakdown of contracts and their dependencies can be found in the following link:
 https://docs.google.com/spreadsheets/d/1iwl_WO95_x0lhU7ML5ejRdZ3PiLOWrygBvZJQRTurKc/edit?usp=sharing
 
@@ -142,15 +146,15 @@ Contract handling user Deposits, responsible for:
   - Transferring tokens from user to protocol
 
 #### EmergencyHandler.sol (163 sloc each)
-Alternate withdrawal logic, used in case of curve being compromised, or in the case o the failure of a stablecoin.
+Alternate withdrawal logic, used in case of curve being compromised, or in the case of the failure of a stablecoin.
 
 ### Tokens [Diagrams]
 
 #### GERC20.sol (341 sloc)
 Custom implementation of the ERC20 specifications, built ontop of the OpenZepplin ERC20 implementation:
--	_burn: Added paramater - burnAmount added to take rebased amount into account,                                                                                                                                                             affects the Transfer event
--	_mint: Added paramater - mintAmount added to take rebased amount into account,                                                                                                                                                             affects the Transfer event
--	_transfer: Added paramater - transferAmount added to take rebased amount into account,                                                                                                                                                    affects the Transfer event 
+-	_burn: Added parameter - burnAmount added to take rebased amount into account, affects the Transfer event
+-	_mint: Added parameter - mintAmount added to take rebased amount into account, affects the Transfer event
+-	_transfer: Added parameter - transferAmount added to take rebased amount into account, affects the Transfer event 
 -	_decreaseApproved: Added function - internal function to allowed override of transferFrom    
 
 #### GToken.sol (71 sloc)
@@ -215,10 +219,10 @@ The insurance contract is the most important part of the protocol - it controls 
 The insurance contract shouldn't need to be replaced, as any changes to the protocol (e.g. changes in assets, strategies or protocol exposure) should be captured by the allocation and exposure contracts. These act as strategies for the main insurance contract.
 
 #### Exposure.sol (280 sloc)
-Allows the insurance module to calculate current exposure based on the current protocol setup.
+Allows the insurance module to calculate current exposure based on the current protocol setup
 
 #### Allocation.sol (319 sloc)
-Determines protocol stable coin stable coin, strategy allocations and thresholds based on the current protocol setup.
+Determines protocol stable coin stable coin, strategy allocations and thresholds based on the current protocol setup
 
 #### PnL.sol (412 sloc)
 The Pnl contract holds logic to deal with system profit and loss -It holds a snapshot of latest tvl split between Gvt and Pwrd, and updates this value as deposits/withdrawal, gains/losses etc occur. The following action can impact the systems TvL: 
@@ -230,10 +234,10 @@ The Pnl contract holds logic to deal with system profit and loss -It holds a sna
 ### Vaults and Strategies [Diagrams]
 
 #### BaseVaultAdaptor.sol (348 sloc)
-Abstract contract containing additional logic that needs to be built ontop of any vault in order for it to function with gro protocol.
+Abstract contract containing additional logic that needs to be built ontop of any vault in order for it to function with gro protocol
 
 #### VaultAdaptorYearnV2_032.sol (158 sloc)
-Implementation of the vault adapter to interact with a modified version of the yearnV2 Vault.
+Implementation of the vault adapter to interact with a modified version of the yearnV2 Vault
 
 ### Common contracts
 Standard abstractions implemented by other contracts in the protocol
@@ -268,7 +272,7 @@ A full set of unit tests are provided in the repo.
 
 ## Testnet deployment
 
-A working instance of gro protocol has been deployed on Kovan. All external contracts, with the exception of chain links aggregators,  been mocked. Strategies and underlying vaults are included in the deployment, but are outside the scope of the competition. Yields are mocked and generated on a regular basis. Bots are triggering Harvests any any other actions that are used to maintain the protocol. Mint functionality is open for all stable coins, and users are welcome to use and play around with the protocol. But if you want to do do an extensive amount of interactions with the protocol, we would kindly ask you to do so on a fork.
+A working instance of gro protocol has been deployed on Kovan. All external contracts, with the exception of chain links aggregators, have been mocked. Strategies and underlying vaults are included in the deployment to aid testing and analysis, but are outside the scope of this contest. Yields are mocked and generated on a regular basis. Bots are triggering Harvests any any other actions that are used to maintain the protocol. Mint functionality is open for all stable coins, and users are welcome to use and play around with the protocol. But if you want to do do an extensive amount of interactions with the protocol, such as large trades which may impact the balance of the Curve pool, we would kindly ask you to do so on a fork.
 
  The following mocked contracts are used by the protocol on Kovan:
 | Mocks                         | Address |
@@ -306,5 +310,7 @@ The following contracts make up the core protocol on Kovan.
 | VaultAdaptorYearnV2_032| [VaultAdaptorYearnV2_032, ''], |
 | VaultAdaptorYearnV2_032| [VaultAdaptorYearnV2_032, ''], |
 | VaultAdaptorYearnV2_032| [VaultAdaptorYearnV2_032, ''], |
+
+
 
 

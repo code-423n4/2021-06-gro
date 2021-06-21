@@ -12,32 +12,6 @@ Some of the checklists in this doc are for **C4 (🐺)** and some of them are fo
 
 ---
 
-# Contest scoping
-
-## ⭐️ Sponsor: Provide contest scoping details
-
-Under "Contest scope information" below, include the following:
-
-- [ ] Name of each contract and:
-  - [ ] lines of code in each
-  - [ ] external contracts called in each
-  - [ ] libraries used in each
-- [ ] Describe any novel or unique curve logic or mathematical models implemented in the contracts
-- [ ] Does the token conform to the ERC-20 standard? In what specific ways does it differ?
-- [ ] Describe anything else that adds any special logic that makes your approach unique
-- [ ] Identify any areas of specific concern in reviewing the code
-- [ ] Add all of the code to this repo that you want reviewed
-- [ ] Create a PR to this repo with the above changes.
-- [ ] Delete this checklist and wait for C4 to provide a recommended contest minimum.
-
----
-
-# Contest scope information
-
-[ ⭐️ SPONSORS ADD INFO HERE ]
-
----
-
 # Contest prep
 
 ## 🐺 C4: Contest prep

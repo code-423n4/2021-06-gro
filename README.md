@@ -1,3 +1,4 @@
+
 # ✨ So you want to sponsor a contest
 
 This `README.md` contains a set of checklists for our contest collaboration.
@@ -80,20 +81,16 @@ This is all achieved by utilizing Curve as a swapping layer, meaning that the sy
 ## Smart Contracts
 
 All the contracts in this section are to be reviewed. Any contracts not in this list are to be ignored for this contest.
-A further breakdown of contracts and their dependencies can be found in the following link:
-https://docs.google.com/spreadsheets/d/1iwl_WO95_x0lhU7ML5ejRdZ3PiLOWrygBvZJQRTurKc/edit?usp=sharing
+A further breakdown of [contracts and their dependencies can be found here](https://docs.google.com/spreadsheets/d/1iwl_WO95_x0lhU7ML5ejRdZ3PiLOWrygBvZJQRTurKc/edit?usp=sharing)
 
-The Protocol is divided into 5 separate modules with different areas of concerns:
-[System Diagram]
+The Protocol is divided into 5 separate modules with different areas of concerns - [System Diagram](https://drive.google.com/file/d/1ueVEEmv19hydELJyLBtso5ksOIsl77lv/view?usp=sharing)
 
-### Control flow [Diagrams]
+### Control flow [Diagrams](https://drive.google.com/file/d/1gCVQJzzSFLgDAXDK0ZwPg2fRA19CglOS/view?usp=sharing)
 The control flow is primarily responsible for stringing the other modules together and user interactions. The controller acts as a hub, providing system level information to other modules. The withdraw and deposit handlers acts as entry points for users withdrawals and deposits respectively.
 	
 #### Controller.sol (245 sloc each)
 Core contract connecting the separate modules, responsible for:
- - User interaction logic:
-	 - Deposit logic
-	 - Withdrawal logic
+
  - Connection Gtokens to protocol
 	 - Minting/Burning tokens
 	 - Establishing current total assets for pwrd/gvt
@@ -101,8 +98,8 @@ Core contract connecting the separate modules, responsible for:
  - Access control (may block smart contracts)
  
 #### WithdrawHandler.sol (417 sloc each)
-Contract handling user withdrawals, responsible for:
-  - Determining withdrawal logic path [single, balanced]
+ - Contract handling user withdrawals, responsible for:
+  - Determining withdrawal logic path [single, balanced, size]
   - Transferring assets from protocol to user
 
 #### DepositHandler.sol (261 sloc each)
@@ -113,7 +110,7 @@ Contract handling user Deposits, responsible for:
 #### EmergencyHandler.sol (163 sloc each)
 Alternate withdrawal logic, used in case of curve being compromised, or in the case of the failure of a stablecoin.
 
-### Tokens [Diagrams]
+### Tokens [Diagrams](https://drive.google.com/file/d/1EVWhZYTtLGddp3SZFT8-ZpvunYClCVEj/view?usp=sharing)
 
 #### GERC20.sol (341 sloc)
 Custom implementation of the ERC20 specifications, built ontop of the OpenZepplin ERC20 implementation:
@@ -153,7 +150,7 @@ Implementation of the GToken contract, used the gtoken factor to establish a bal
      return f > 0 ? totalSupplyBase().mul(BASE).div(f) : 0;
  }
 ```
-### Pricing and Swapping [Diagrams]
+### Pricing and Swapping [Diagrams](https://drive.google.com/file/d/1rMx_RK7RsQYLxQXrvtp9skyVgJokN_gV/view?usp=sharing)
 The system should have one base currency to calculate total assets based on multiple stable coins (one stable coin has one corresponding VaultAdapter). US Dollar (USD) is used as the base currency. The pricing and swapping modules responsibility is to get the dollar price for stable coins. Safety is the first requirement of this module.
 
 #### LifeGuard3Pool.sol (382 sloc)
@@ -167,7 +164,7 @@ The Buoy acts as the protocol pricing oracle, and is responsible for providing p
 	- Sanity checks Curve prices against historical pricing points
 	- Sanity checks Curve against Chainlinks aggregators 
 
-### Insurance [Diagrams]
+### Insurance [Diagrams](https://drive.google.com/file/d/1Az4ThISghdIYcbgo6pYWjRqZ_PjLpaFr/view?usp=sharing)
 The insurance module is responsible for the system's overall health. It provides functionality for establishing current exposure, and allows the system to route deposits and withdrawals to the correct target vaults. The main insurance functionality is supported by two contracts, allocation and exposure; these are replaceable contracts and act as individual strategies that are depending on the current protocol exposures in the system.
 
 In addition to the core insurance contract, the PnL contract helps the protocol to distribute profit or losses from underlying vaults between GVT and PWRD according to the gro algorithm, and provide the system utilisation ratio (PWRD count / GVT total value).
@@ -196,7 +193,7 @@ The Pnl contract holds logic to deal with system profit and loss -It holds a sna
 	-	Holder bonuses: A fee taken from users on withdrawals and distributed to other protocol holders. This is realized on withdrawals
 	-	Price changes: As the TvL is determined by by curves pricing. Price changes are realised during harvests, and only affect the GVT tokens total assets (independently if the realized price difference causes a gain or loss)
 
-### Vaults and Strategies [Diagrams]
+### Vaults and Strategies [Diagrams](https://drive.google.com/file/d/1hQHTY_tDFW5TYzgqyFb8IpZzP0LdSSaZ/view?usp=sharing)
 
 #### BaseVaultAdaptor.sol (348 sloc)
 Abstract contract containing additional logic that needs to be built ontop of any vault in order for it to function with gro protocol

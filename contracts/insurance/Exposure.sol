@@ -12,7 +12,6 @@ import "../interfaces/IERC20Detailed.sol";
 import "../interfaces/ILifeGuard.sol";
 import "../interfaces/IExposure.sol";
 import "../interfaces/IVault.sol";
-import "../interfaces/IPnL.sol";
 import "../interfaces/IBuoy.sol";
 
 /// @notice Contract for calculating current protocol exposures on a stablecoin and

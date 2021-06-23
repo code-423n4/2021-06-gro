@@ -4,7 +4,7 @@ pragma solidity >=0.6.0 <0.7.0;
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
-import {FixedStablecoins, FixedGTokens, FixedVaults} from "./common/FixedContracts.sol";
+import {FixedStablecoins, FixedVaults} from "./common/FixedContracts.sol";
 import "./common/Controllable.sol";
 
 import "./interfaces/IBuoy.sol";
@@ -12,9 +12,6 @@ import "./interfaces/IDepositHandler.sol";
 import "./interfaces/IERC20Detailed.sol";
 import "./interfaces/IInsurance.sol";
 import "./interfaces/ILifeGuard.sol";
-import "./interfaces/IPnL.sol";
-import "./interfaces/IToken.sol";
-import "./interfaces/IVault.sol";
 
 /// @notice Entry point for deposits into Gro protocol - User deposits can be done with one or
 ///     multiple assets, being more expensive gas wise for each additional asset that is deposited.
@@ -29,21 +26,17 @@ import "./interfaces/IVault.sol";
 ///
 ///     Tuna and Whale deposits will go through the lifeguard, which in turn will perform all
 ///     necessary asset swaps.
-contract DepositHandler is Controllable, FixedStablecoins, FixedGTokens, FixedVaults, IDepositHandler {
-    uint256 public utilisationRatioLimitPwrd;
-    IController ctrl;
-    ILifeGuard lg;
-    IBuoy buoy;
-    IPnL pnl;
-    IInsurance insurance;
+contract DepositHandler is Controllable, FixedStablecoins, FixedVaults, IDepositHandler {
+    IController public ctrl;
+    ILifeGuard public lg;
+    IBuoy public buoy;
+    IInsurance public insurance;
 
-    mapping(address => address) public override referral;
     mapping(uint256 => bool) public feeToken; // (USDT might have a fee)
 
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
-    event LogNewUtilLimit(bool indexed pwrd, uint256 limit);
     event LogNewFeeToken(address indexed token, uint256 index);
     event LogNewDependencies(address controller, address lifeguard, address buoy, address insurance);
     event LogNewDeposit(
@@ -55,13 +48,11 @@ contract DepositHandler is Controllable, FixedStablecoins, FixedGTokens, FixedVa
     );
 
     constructor(
-        address pwrd,
-        address gvt,
         uint256 _feeToken,
         address[N_COINS] memory _vaults,
         address[N_COINS] memory _tokens,
         uint256[N_COINS] memory _decimals
-    ) public FixedStablecoins(_tokens, _decimals) FixedGTokens(pwrd, gvt) FixedVaults(_vaults) {
+    ) public FixedStablecoins(_tokens, _decimals) FixedVaults(_vaults) {
         feeToken[_feeToken] = true;
     }
 
@@ -71,16 +62,7 @@ contract DepositHandler is Controllable, FixedStablecoins, FixedGTokens, FixedVa
         lg = ILifeGuard(ctrl.lifeGuard());
         buoy = IBuoy(lg.getBuoy());
         insurance = IInsurance(ctrl.insurance());
-        pnl = IPnL(ctrl.pnl());
         emit LogNewDependencies(address(ctrl), address(lg), address(buoy), address(insurance));
-    }
-
-    /// @notice Set the lower bound for when to stop accepting deposits for pwrd - this allows for a bit of legroom
-    ///     for gvt to be sold (if this limit is reached, this contract only accepts deposits for gvt)
-    /// @param _utilisationRatioLimitPwrd Lower limit for pwrd (%BP)
-    function setUtilisationRatioLimitPwrd(uint256 _utilisationRatioLimitPwrd) external onlyOwner {
-        utilisationRatioLimitPwrd = _utilisationRatioLimitPwrd;
-        emit LogNewUtilLimit(true, _utilisationRatioLimitPwrd);
     }
 
     /// @notice Some tokens might have fees associated with them (e.g. USDT)
@@ -130,29 +112,13 @@ contract DepositHandler is Controllable, FixedStablecoins, FixedGTokens, FixedVa
         ctrl.eoaOnly(msg.sender);
         require(minAmount > 0, "minAmount is 0");
         require(buoy.safetyCheck(), "!safetyCheck");
-        if (_referral != address(0) && referral[msg.sender] == address(0)) {
-            referral[msg.sender] = _referral;
-        }
+        ctrl.addReferral(msg.sender, _referral);
 
-        IToken gt = gTokens(pwrd);
-
-        uint256 factor = gt.factor();
         uint256 roughUsd = roughUsd(inAmounts);
-
-        // Make sure we don't increase the amount of pwrd above the utilization limit
-
-        if (pwrd) {
-            require(validGTokenIncrease(roughUsd), "exceeds utilisation limit");
-        }
-
-        (uint256 dollarAmount, uint256 _factor) = _deposit(pwrd, roughUsd, minAmount, inAmounts);
-        if (_factor > 0) {
-            factor = _factor;
-        }
-        gt.mint(msg.sender, factor, dollarAmount);
-        pnl.increaseGTokenLastAmount(address(gt), dollarAmount);
+        uint256 dollarAmount = _deposit(pwrd, roughUsd, minAmount, inAmounts);
+        ctrl.mintGToken(pwrd, msg.sender, dollarAmount);
         // Update underlying assets held in pwrd/gvt
-        emit LogNewDeposit(msg.sender, referral[msg.sender], pwrd, dollarAmount, inAmounts);
+        emit LogNewDeposit(msg.sender, ctrl.referrals(msg.sender), pwrd, dollarAmount, inAmounts);
     }
 
     /// @notice Determine the size of the deposit, and route it accordingly:
@@ -161,7 +127,6 @@ contract DepositHandler is Controllable, FixedStablecoins, FixedGTokens, FixedVa
     ///             target token (based on current vault exposure)
     ///     whale (large) - tokens get deposited into lifeguard Curve pool, withdraw
     ///             into target amounts and deposited across all vaults
-    /// @param pwrd Pwrd or gvt
     /// @param roughUsd Estimated USD value of deposit, used to determine size
     /// @param minAmount Minimum amount to return (in Curve LP tokens)
     /// @param inAmounts Input token amounts
@@ -170,9 +135,9 @@ contract DepositHandler is Controllable, FixedStablecoins, FixedGTokens, FixedVa
         uint256 roughUsd,
         uint256 minAmount,
         uint256[N_COINS] memory inAmounts
-    ) private returns (uint256 dollarAmount, uint256 factor) {
+    ) private returns (uint256 dollarAmount) {
         // If a large fish, transfer assets to lifeguard before determening what to do with them
-        if (ctrl.isBigFish(roughUsd)) {
+        if (ctrl.isValidBigFish(pwrd, true, roughUsd)) {
             for (uint256 i = 0; i < N_COINS; i++) {
                 // Transfer token to target (lifeguard)
                 if (inAmounts[i] > 0) {
@@ -187,7 +152,7 @@ contract DepositHandler is Controllable, FixedStablecoins, FixedGTokens, FixedVa
                     }
                 }
             }
-            (dollarAmount, factor) = _invest(inAmounts, roughUsd);
+            dollarAmount = _invest(inAmounts, roughUsd);
         } else {
             // If sardine, send the assets directly to the vault adapter
             for (uint256 i = 0; i < N_COINS; i++) {
@@ -221,10 +186,7 @@ contract DepositHandler is Controllable, FixedStablecoins, FixedGTokens, FixedVa
     ///        investing them into all vaults
     /// @param _inAmounts Input token amounts
     /// @param roughUsd Estimated rough USD value of deposit
-    function _invest(
-        uint256[N_COINS] memory _inAmounts,
-        uint256 roughUsd
-    ) internal returns (uint256 dollarAmount, uint256 factor) {
+    function _invest(uint256[N_COINS] memory _inAmounts, uint256 roughUsd) internal returns (uint256 dollarAmount) {
         // Calculate asset distribution - for large deposits, we will want to spread the
         // assets across all stablecoin vaults to avoid overexposure, otherwise we only
         // ensure that the deposit doesn't target the most overexposed vault
@@ -236,15 +198,6 @@ contract DepositHandler is Controllable, FixedStablecoins, FixedGTokens, FixedVa
             uint256[N_COINS] memory delta = insurance.calculateDepositDeltasOnAllVaults();
             dollarAmount = lg.invest(outAmount, delta);
         }
-    }
-
-    /// @notice Check if it's OK to mint the specified amount of tokens, this affects
-    ///     pwrds, as they have an upper bound set by the amount of gvt
-    /// @param amount Amount of token to mint
-    function validGTokenIncrease(uint256 amount) private view returns (bool) {
-        return
-            gTokens(false).totalAssets().mul(utilisationRatioLimitPwrd).div(PERCENTAGE_DECIMAL_FACTOR) >=
-            amount.add(gTokens(true).totalAssets());
     }
 
     /// @notice Give a USD estimate of the deposit - this is purely used to determine deposit size

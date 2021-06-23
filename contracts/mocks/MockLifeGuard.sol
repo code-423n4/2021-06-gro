@@ -47,28 +47,16 @@ contract MockLifeGuard is Constants, Controllable, ILifeGuard {
         return usdToLp(_totalAssetsUsd);
     }
 
-    function _stableToUsd(uint256[] memory inAmounts, bool _deposit)
-        private
-        view
-        returns (uint256)
-    {
+    function _stableToUsd(uint256[] memory inAmounts, bool _deposit) private view returns (uint256) {
         uint256 lp = _stableToLp(inAmounts, _deposit);
         return _lpToUsd(lp);
     }
 
-    function stableToLp(uint256[] calldata inAmounts, bool _deposit)
-        external
-        view
-        returns (uint256)
-    {
+    function stableToLp(uint256[] calldata inAmounts, bool _deposit) external view returns (uint256) {
         return _stableToLp(inAmounts, _deposit);
     }
 
-    function _stableToLp(uint256[] memory inAmounts, bool _deposit)
-        private
-        view
-        returns (uint256)
-    {
+    function _stableToLp(uint256[] memory inAmounts, bool _deposit) private view returns (uint256) {
         uint256 totalAmount;
         for (uint256 i = 0; i < vpSingle.length; i++) {
             totalAmount = totalAmount.add(inAmounts[i].mul(vpSingle[i]).div(10**decimals[i]));
@@ -114,8 +102,7 @@ contract MockLifeGuard is Constants, Controllable, ILifeGuard {
             uint256 lpAmount = inAmount.mul(balanced[i]).div(100);
             amounts[i] = _singleStableFromLp(lpAmount, i);
             IERC20 token = IERC20(IVault(vaults[i]).token());
-            if (token.balanceOf(vaults[i]) > amounts[i])
-                token.transferFrom(vaults[i], recipient, amounts[i]);
+            if (token.balanceOf(vaults[i]) > amounts[i]) token.transferFrom(vaults[i], recipient, amounts[i]);
         }
     }
 
@@ -123,7 +110,13 @@ contract MockLifeGuard is Constants, Controllable, ILifeGuard {
         uint256 i,
         uint256 minAmount,
         address recipient
-    ) external override returns (uint256 usdAmount, uint256 amount) {}
+    ) external override returns (uint256 usdAmount, uint256 amount) {
+        usdAmount = _lpToUsd(inAmounts[0]);
+        amount = _singleStableFromLp(inAmounts[0], i);
+        address[N_COINS] memory vaults = _controller().vaults();
+        IERC20 token = IERC20(IVault(vaults[i]).token());
+        if (token.balanceOf(vaults[i]) > amount) token.transferFrom(vaults[i], recipient, amount);
+    }
 
     function withdrawSingleByExchange(
         uint256 i,
@@ -137,11 +130,7 @@ contract MockLifeGuard is Constants, Controllable, ILifeGuard {
         if (token.balanceOf(vaults[i]) > amount) token.transferFrom(vaults[i], recipient, amount);
     }
 
-    function invest(uint256 whaleDepositAmount, uint256[3] calldata delta)
-        external
-        override
-        returns (uint256)
-    {
+    function invest(uint256 whaleDepositAmount, uint256[3] calldata delta) external override returns (uint256) {
         address[N_COINS] memory vaults = _controller().vaults();
         for (uint256 i; i < vaults.length; i++) {
             IERC20 token = IERC20(IVault(vaults[i]).token());

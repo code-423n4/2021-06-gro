@@ -25,8 +25,6 @@ function calcActualProfit(profit, vaultAssets, pwrdAssets) {
 function distributeProfit(profit, vaultAssets, pwrdAssets) {
   const [vaultActualProfit, pwrdActualProfit] = calcActualProfit(
     profit, vaultAssets, pwrdAssets);
-  console.log('vaultActualProfit: ' + vaultActualProfit);
-  console.log('pwrdActualProfit: ' + pwrdActualProfit);
   const afterVaultAssets = vaultAssets.add(vaultActualProfit);
   const afterPWRDAssets = pwrdAssets.add(pwrdActualProfit);
   return [afterVaultAssets, afterPWRDAssets, vaultActualProfit, pwrdActualProfit];

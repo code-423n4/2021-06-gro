@@ -93,16 +93,13 @@ contract('Insurance Test', function (accounts) {
         await insurance.setController(mockController.address);
         await insurance.setExposureBufferRebalance(new BN(50));
 
-        await insurance.addToWhitelist(governance, { from: governance });
         await insurance.setUnderlyingTokenPercent(0, vaultTargetPercents[0]);
         await insurance.setUnderlyingTokenPercent(1, vaultTargetPercents[1]);
         await insurance.setUnderlyingTokenPercent(2, vaultTargetPercents[2]);
 
         exposure = await Exposure.new();
         await insurance.setExposure(exposure.address);
-        await insurance.addToWhitelist(exposure.address);
         await exposure.setController(mockController.address);
-        await exposure.addToWhitelist(accounts[0]);
 
         allocation = await Allocation.new();
         await insurance.setAllocation(allocation.address);

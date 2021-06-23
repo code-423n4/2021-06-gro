@@ -18,7 +18,6 @@ import "./interfaces/ILifeGuard.sol";
 import "./interfaces/IPnL.sol";
 import "./interfaces/IToken.sol";
 import "./interfaces/IVault.sol";
-import "./interfaces/IWithdrawHandler.sol";
 
 /// @notice The main hub for Gro protocol - The controller links up the other contracts,
 ///     and acts a route for the other contracts to call one another. It holds global states
@@ -48,11 +47,15 @@ contract Controller is Pausable, Ownable, Whitelist, FixedStablecoins, FixedGTok
     address public override pnl; // Profit and loss calculations
     address public override lifeGuard; // Asset swapping
     address public override buoy; // Oracle
-    address public override withdrawHandler;
     address public override depositHandler;
+    address public override withdrawHandler;
+    address public override emergencyHandler;
 
     uint256 public override deadCoin = 99;
     bool public override emergencyState;
+    // Lower bound for how many gvt can be burned before getting to close to the utilisation ratio
+    uint256 public utilisationRatioLimitGvt;
+    uint256 public utilisationRatioLimitPwrd;
 
     /// Limits for what deposits/withdrawals that are considered 'large', and thus will be handled with
     ///     a different logic - limits are checked against total assets locked in etiher of the two tokens (pwrd, gvt)
@@ -63,6 +66,11 @@ contract Controller is Pausable, Ownable, Whitelist, FixedStablecoins, FixedGTok
     mapping(address => bool) public safeAddresses; // Some integrations need to be exempt from flashloan checks
     mapping(uint256 => address) public override underlyingVaults; // Protocol stablecoin vaults
     mapping(address => uint256) public vaultIndexes;
+
+    mapping(address => address) public override referrals;
+
+    // Pwrd (true) and gvt (false) mapped to respective withdrawal fee
+    mapping(bool => uint256) public override withdrawalFee;
 
     event LogNewWithdrawHandler(address tokens);
     event LogNewDepositHandler(address tokens);
@@ -75,6 +83,9 @@ contract Controller is Pausable, Ownable, Whitelist, FixedStablecoins, FixedGTok
     event LogFlashSwitchUpdated(bool status);
     event LogNewSafeAddress(address account);
     event LogNewRewardsContract(address reward);
+    event LogNewUtilLimit(bool indexed pwrd, uint256 limit);
+    event LogNewCurveToStableDistribution(uint256 amount, uint256[N_COINS] amounts, uint256[N_COINS] delta);
+    event LogNewWithdrawalFee(address user, bool pwrd, uint256 newFee);
 
     constructor(
         address pwrd,
@@ -91,9 +102,10 @@ contract Controller is Pausable, Ownable, Whitelist, FixedStablecoins, FixedGTok
         _unpause();
     }
 
-    function setWithdrawHandler(address _withdrawHandler) external onlyOwner {
+    function setWithdrawHandler(address _withdrawHandler, address _emergencyHandler) external onlyOwner {
         require(_withdrawHandler != address(0), "setWithdrawHandler: 0x");
         withdrawHandler = _withdrawHandler;
+        emergencyHandler = _emergencyHandler;
         emit LogNewWithdrawHandler(_withdrawHandler);
     }
 
@@ -185,6 +197,21 @@ contract Controller is Pausable, Ownable, Whitelist, FixedStablecoins, FixedGTok
         emit LogNewRewardsContract(_reward);
     }
 
+    function addReferral(address account, address referral) external override {
+        require(msg.sender == depositHandler, "!depositHandler");
+        if (account != address(0) && referral != address(0) && referrals[account] == address(0)) {
+            referrals[account] = referral;
+        }
+    }
+
+    /// @notice Set withdrawal fee for token
+    /// @param pwrd Pwrd or gvt (pwrd/gvt)
+    /// @param newFee New token fee
+    function setWithdrawalFee(bool pwrd, uint256 newFee) external onlyOwner {
+        withdrawalFee[pwrd] = newFee;
+        emit LogNewWithdrawalFee(msg.sender, pwrd, newFee);
+    }
+
     /// @notice Calculate system total assets
     function totalAssets() external view override returns (uint256) {
         return emergencyState ? _totalAssetsEmergency() : _totalAssets();
@@ -210,7 +237,16 @@ contract Controller is Pausable, Ownable, Whitelist, FixedStablecoins, FixedGTok
     /// @param amount USD amount of deposit/withdrawal
     /// @dev Larger deposits are handled differently than small deposits in order
     ///     to guarantee that the system isn't overexposed to any one stablecoin
-    function isBigFish(uint256 amount) external view override returns (bool) {
+    function isValidBigFish(
+        bool pwrd,
+        bool deposit,
+        uint256 amount
+    ) external view override returns (bool) {
+        if (deposit && pwrd) {
+            require(validGTokenIncrease(amount), "isBigFish: !validGTokenIncrease");
+        } else if (!pwrd && !deposit) {
+            require(validGTokenDecrease(amount), "isBigFish: !validGTokenDecrease");
+        }
         (uint256 gvtAssets, uint256 pwrdAssets) = IPnL(pnl).calcPnL();
         uint256 assets = pwrdAssets.add(gvtAssets);
         if (amount < bigFishAbsoluteThreshold) {
@@ -220,6 +256,11 @@ contract Controller is Pausable, Ownable, Whitelist, FixedStablecoins, FixedGTok
         } else {
             return amount > assets.mul(bigFishThreshold).div(PERCENTAGE_DECIMAL_FACTOR);
         }
+    }
+
+    function distributeCurveAssets(uint256 amount, uint256[N_COINS] memory delta) external onlyWhitelist {
+        uint256[N_COINS] memory amounts = ILifeGuard(lifeGuard).distributeCurveVault(amount, delta);
+        emit LogNewCurveToStableDistribution(amount, amounts, delta);
     }
 
     /// @notice Block if not an EOA or whitelisted
@@ -332,7 +373,7 @@ contract Controller is Pausable, Ownable, Whitelist, FixedStablecoins, FixedGTok
                 lossUsd = ibuoy.lpToUsd(loss);
             }
         }
-        ipnl.distributeStrategyGainLoss(gainUsd, lossUsd);
+        ipnl.distributeStrategyGainLoss(gainUsd, lossUsd, reward);
         // Check if curve spot price within tollerance, if so update them
         if (ibuoy.updateRatios()) {
             // If the curve ratios were successfully updated, realize system price changes
@@ -340,10 +381,93 @@ contract Controller is Pausable, Ownable, Whitelist, FixedStablecoins, FixedGTok
         }
     }
 
-    /// @notice Distribute holder bonus after withdrawal,
-    /// @param bonus amount to distribute
-    function distributeHodlerBonus(uint256 bonus) external override {
-        require(IWithdrawHandler(withdrawHandler).validHandler(msg.sender), "!WithdrawHandler");
-        IPnL(pnl).distributeHodlerBonus(bonus);
+    function realizePriceChange(uint256 tolerance) external onlyOwner {
+        IPnL ipnl = IPnL(pnl);
+        IBuoy ibuoy = IBuoy(buoy);
+        if (emergencyState) {
+            ipnl.distributePriceChange(_totalAssetsEmergency());
+        } else {
+            // Check if curve spot price within tollerance, if so update them
+            if (ibuoy.updateRatiosWithTolerance(tolerance)) {
+                // If the curve ratios were successfully updated, realize system price changes
+                ipnl.distributePriceChange(_totalAssets());
+            }
+        }
+    }
+
+    function burnGToken(
+        bool pwrd,
+        bool all,
+        address account,
+        uint256 amount,
+        uint256 bonus
+    ) external override {
+        require(msg.sender == withdrawHandler || msg.sender == emergencyHandler, "burnGToken: !withdrawHandler");
+        IToken gt = gTokens(pwrd);
+        if (!all) {
+            gt.burn(account, gt.factor(), amount);
+        } else {
+            gt.burnAll(account);
+        }
+        // Update underlying assets held in pwrd/gvt
+        IPnL(pnl).decreaseGTokenLastAmount(pwrd, amount, bonus);
+    }
+
+    function mintGToken(
+        bool pwrd,
+        address account,
+        uint256 amount
+    ) external override {
+        require(msg.sender == depositHandler, "burnGToken: !depositHandler");
+        IToken gt = gTokens(pwrd);
+        gt.mint(account, gt.factor(), amount);
+        IPnL(pnl).increaseGTokenLastAmount(pwrd, amount);
+    }
+
+    /// @notice Calcualte withdrawal value when withdrawing all
+    /// @param pwrd Pwrd or gvt (pwrd/gvt)
+    /// @param account User account
+    function getUserAssets(bool pwrd, address account) external view override returns (uint256 deductUsd) {
+        IToken gt = gTokens(pwrd);
+        deductUsd = gt.getAssets(account);
+        require(deductUsd > 0, "!minAmount");
+    }
+
+    /// @notice Check if it's OK to mint the specified amount of tokens, this affects
+    ///     pwrds, as they have an upper bound set by the amount of gvt
+    /// @param amount Amount of token to mint
+    function validGTokenIncrease(uint256 amount) private view returns (bool) {
+        return
+            gTokens(false).totalAssets().mul(utilisationRatioLimitPwrd).div(PERCENTAGE_DECIMAL_FACTOR) >=
+            amount.add(gTokens(true).totalAssets());
+    }
+
+    /// @notice Check if it's OK to burn the specified amount of tokens, this affects
+    ///     gvt, as they have a lower bound set by the amount of pwrds
+    /// @param amount Amount of token to burn
+    function validGTokenDecrease(uint256 amount) public view override returns (bool) {
+        return
+            gTokens(false).totalAssets().sub(amount).mul(utilisationRatioLimitGvt).div(PERCENTAGE_DECIMAL_FACTOR) >=
+            gTokens(true).totalAssets();
+    }
+
+    /// @notice Set the lower bound for when to stop accepting deposits for pwrd - this allows for a bit of legroom
+    ///     for gvt to be sold (if this limit is reached, this contract only accepts deposits for gvt)
+    /// @param _utilisationRatioLimitPwrd Lower limit for pwrd (%BP)
+    function setUtilisationRatioLimitPwrd(uint256 _utilisationRatioLimitPwrd) external onlyOwner {
+        utilisationRatioLimitPwrd = _utilisationRatioLimitPwrd;
+        emit LogNewUtilLimit(true, _utilisationRatioLimitPwrd);
+    }
+
+    /// @notice Set the lower bound for when to stop accepting gvt withdrawals
+    /// @param _utilisationRatioLimitGvt Lower limit for pwrd (%BP)
+    function setUtilisationRatioLimitGvt(uint256 _utilisationRatioLimitGvt) external onlyOwner {
+        utilisationRatioLimitGvt = _utilisationRatioLimitGvt;
+        emit LogNewUtilLimit(false, _utilisationRatioLimitGvt);
+    }
+
+    function getStrategiesTargetRatio() external view override returns (uint256[] memory) {
+        uint256 utilRatio = IPnL(pnl).utilisationRatio();
+        return IInsurance(insurance).getStrategiesTargetRatio(utilRatio);
     }
 }

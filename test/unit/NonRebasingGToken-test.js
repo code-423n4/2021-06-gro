@@ -46,7 +46,7 @@ contract('NonRebasingGToken Test', function (accounts) {
         beforeEach(async function () {
             if (this.currentTest.title === 'Should be BASE value initially') return;
 
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 gvt.address, new BN(200).mul(baseNum), { from: investor1 });
         });
 
@@ -78,10 +78,10 @@ contract('NonRebasingGToken Test', function (accounts) {
     describe('totalSupply', function () {
         beforeEach(async function () {
 
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 gvt.address, new BN(100).mul(baseNum), { from: investor1 });
 
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 gvt.address, new BN(100).mul(baseNum), { from: investor2 });
         });
 
@@ -106,10 +106,10 @@ contract('NonRebasingGToken Test', function (accounts) {
     describe('balanceOf', function () {
         beforeEach(async function () {
 
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 gvt.address, new BN(100).mul(baseNum), { from: investor1 });
 
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 gvt.address, new BN(200).mul(baseNum), { from: investor2 });
         });
 
@@ -134,10 +134,10 @@ contract('NonRebasingGToken Test', function (accounts) {
     describe('transfer', function () {
         beforeEach(async function () {
 
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 gvt.address, new BN(100).mul(baseNum), { from: investor1 });
 
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 gvt.address, new BN(200).mul(baseNum), { from: investor2 });
 
 
@@ -183,10 +183,10 @@ contract('NonRebasingGToken Test', function (accounts) {
     describe('transferFrom', function () {
         beforeEach(async function () {
 
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 gvt.address, new BN(100).mul(baseNum), { from: investor1 });
 
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 gvt.address, new BN(200).mul(baseNum), { from: investor2 });
         });
 
@@ -243,9 +243,9 @@ contract('NonRebasingGToken Test', function (accounts) {
 
         beforeEach(async function () {
 
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 gvt.address, new BN(100).mul(baseNum), { from: investor1 });
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 gvt.address, new BN(200).mul(baseNum), { from: investor2 });
             await mockController.setGTokenTotalAssets(new BN(400).mul(baseNum));
         });
@@ -279,12 +279,12 @@ contract('NonRebasingGToken Test', function (accounts) {
         const BASE = new BN(10).pow(new BN(18));
 
         it('Burn event', async function () {
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 gvt.address, new BN(400).mul(baseNum), { from: investor1 }
             );
             const firstBurnAmount = new BN(200).mul(baseNum)
             const factorfirstBurn = await gvt.factor();
-            const trx = await mockController.burnGToken(
+            const trx = await mockController.burnGTokens(
                 gvt.address, firstBurnAmount, { from: investor1 }
             );
             const tx = await web3.eth.getTransactionReceipt(trx.tx)
@@ -299,7 +299,7 @@ contract('NonRebasingGToken Test', function (accounts) {
             const burnAmount = new BN(100).mul(baseNum)
             const factorSencondburn = await gvt.factor();
             const expectedFinal = initAmount.sub(burnAmount.mul(factorSencondburn).div(baseNum));
-            const trx2 = await mockController.burnGToken(
+            const trx2 = await mockController.burnGTokens(
                 gvt.address, burnAmount, { from: investor1 }
             );
             const tx2 = await web3.eth.getTransactionReceipt(trx2.tx)
@@ -316,7 +316,7 @@ contract('NonRebasingGToken Test', function (accounts) {
         it('Mint event', async function () {
             const firstMintAmount = new BN(200).mul(baseNum)
             const factorfirstMint = await gvt.factor();
-            const trx = await mockController.mintGToken(
+            const trx = await mockController.mintGTokens(
                 gvt.address, firstMintAmount, { from: investor1 }
             );
             const tx = await web3.eth.getTransactionReceipt(trx.tx)
@@ -333,7 +333,7 @@ contract('NonRebasingGToken Test', function (accounts) {
             const mintAmount = new BN(100).mul(baseNum)
             const factorSecondMint = await gvt.factor();
             const expectedFinal = initAmount.add(mintAmount.mul(factorSecondMint).div(baseNum));
-            const trx2 = await mockController.mintGToken(
+            const trx2 = await mockController.mintGTokens(
                 gvt.address, mintAmount, { from: investor1 }
             );
             const tx2 = await web3.eth.getTransactionReceipt(trx2.tx)
@@ -347,7 +347,7 @@ contract('NonRebasingGToken Test', function (accounts) {
         });
 
         it('Transfer event', async function () {
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 gvt.address, new BN(200).mul(baseNum), { from: investor1 }
             );
 

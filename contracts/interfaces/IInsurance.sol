@@ -25,7 +25,7 @@ interface IInsurance {
 
     function sortVaultsByDelta(bool bigFirst) external view returns (uint256[3] memory vaultIndexes);
 
-    function getStrategiesTargetRatio() external view returns (uint256[] memory);
+    function getStrategiesTargetRatio(uint256 utilRatio) external view returns (uint256[] memory);
 
     function setUnderlyingTokenPercent(uint256 coinIndex, uint256 percent) external;
 }

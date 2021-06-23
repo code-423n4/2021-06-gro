@@ -17,14 +17,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
-contract MockController is
-    Constants,
-    Pausable,
-    Ownable,
-    IController,
-    IWithdrawHandler,
-    IDepositHandler
-{
+contract MockController is Constants, Pausable, Ownable, IController, IWithdrawHandler, IDepositHandler {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
@@ -39,8 +32,9 @@ contract MockController is
     bool public override emergencyState;
 
     mapping(address => bool) whiteListedPools;
-    mapping(address => address) public override referral;
+    mapping(address => address) public override referrals;
     address public override insurance;
+    address public override reward;
 
     address public override pnl;
     address public override lifeGuard;
@@ -59,12 +53,7 @@ contract MockController is
     // within a function in truffle test (not available in rawLogs)
     event LogNewDeposit(address indexed user, uint256 usdAmount, uint256[3] tokens);
     event LogNewWithdrawal(address indexed user, uint256 usdAmount, uint256[3] tokenAmounts);
-    event LogNewSingleCoinWithdrawal(
-        address indexed user,
-        uint256 usdAmount,
-        uint256 token,
-        uint256 lpTokens
-    );
+    event LogNewSingleCoinWithdrawal(address indexed user, uint256 usdAmount, uint256 token, uint256 lpTokens);
 
     function setUnderlyingTokens(address[3] calldata tokens) external onlyOwner {
         underlyingTokens = tokens;
@@ -301,7 +290,11 @@ contract MockController is
         _deposit(amount);
     }
 
-    function _burnGToken(address gToken, uint256 amount) private {
+    function _burnGToken(
+        address gToken,
+        uint256 amount,
+        uint256 bonus
+    ) private {
         IToken dt = IToken(gToken);
         dt.burn(msg.sender, dt.factor(), amount);
         _withdraw(amount);
@@ -323,12 +316,12 @@ contract MockController is
         _gTokenTotalAssets = _gTokenTotalAssets.sub(totalAssets);
     }
 
-    function mintGToken(address gToken, uint256 amount) external {
+    function mintGTokens(address gToken, uint256 amount) external {
         _mintGToken(gToken, amount);
     }
 
-    function burnGToken(address gToken, uint256 amount) external {
-        _burnGToken(gToken, amount);
+    function burnGTokens(address gToken, uint256 amount) external {
+        _burnGToken(gToken, amount, 0);
     }
 
     function vaults() external view override returns (address[N_COINS] memory) {
@@ -357,11 +350,23 @@ contract MockController is
     }
 
     function increaseGTokenLastAmount(address gTokenAddress, uint256 dollarAmount) external {
-        IPnL(pnl).increaseGTokenLastAmount(gTokenAddress, dollarAmount);
+        if (gTokenAddress == pwrd) {
+            IPnL(pnl).increaseGTokenLastAmount(true, dollarAmount);
+        } else {
+            IPnL(pnl).increaseGTokenLastAmount(false, dollarAmount);
+        }
     }
 
-    function decreaseGTokenLastAmount(address gTokenAddress, uint256 dollarAmount) external {
-        IPnL(pnl).decreaseGTokenLastAmount(gTokenAddress, dollarAmount);
+    function decreaseGTokenLastAmount(
+        address gTokenAddress,
+        uint256 dollarAmount,
+        uint256 bonus
+    ) external {
+        if (gTokenAddress == pwrd) {
+            IPnL(pnl).decreaseGTokenLastAmount(true, dollarAmount, bonus);
+        } else {
+            IPnL(pnl).decreaseGTokenLastAmount(false, dollarAmount, bonus);
+        }
     }
 
     function setGVT(address token) external {
@@ -388,11 +393,19 @@ contract MockController is
         return address(this);
     }
 
+    function emergencyHandler() external view override returns (address) {
+        return address(this);
+    }
+
     function setWhale(bool _whale) external {
         whale = _whale;
     }
 
-    function isBigFish(uint256 amount) external view override returns (bool) {
+    function isValidBigFish(
+        bool pwrd,
+        bool deposit,
+        uint256 amount
+    ) external view override returns (bool) {
         return whale;
     }
 
@@ -406,25 +419,64 @@ contract MockController is
         return skimPercent;
     }
 
-    function reward() external view override returns (address) {}
-
     function emergency(uint256 coin) external {}
 
     function restart(uint256[] calldata allocations) external {}
 
-    function utilisationRatioLimitGvt() external override returns (uint256) {}
-
-    function distributeHodlerBonus(uint256 bonus) external override {
-        IPnL(pnl).distributeHodlerBonus(bonus);
-    }
-
-    function validHandler(address handler) external view override returns (bool) {}
-
     function distributeStrategyGainLoss(uint256 gain, uint256 loss) external override {
-        IPnL(pnl).distributeStrategyGainLoss(gain, loss);
+        IPnL(pnl).distributeStrategyGainLoss(gain, loss, reward);
     }
 
     function distributePriceChange() external {
         IPnL(pnl).distributePriceChange(totalAssets);
     }
+
+    function burnGToken(
+        bool pwrd,
+        bool all,
+        address account,
+        uint256 amount,
+        uint256 bonus
+    ) external override {
+        IPnL(pnl).decreaseGTokenLastAmount(pwrd, amount, bonus);
+        if (pwrd) {
+            _burnGToken(_pwrd, amount, bonus);
+        } else {
+            _burnGToken(gvt, amount, bonus);
+        }
+    }
+
+    function depositPool() external {
+        ILifeGuard(lifeGuard).deposit();
+    }
+
+    function depositStablePool(bool rebalance) external {
+        ILifeGuard(lifeGuard).depositStable(rebalance);
+    }
+
+    function investPool(uint256 amount, uint256[3] memory delta) external {
+        ILifeGuard(lifeGuard).invest(amount, delta);
+    }
+
+    function mintGToken(
+        bool pwrd,
+        address account,
+        uint256 amount
+    ) external override {}
+
+    function getUserAssets(bool pwrd, address account) external view override returns (uint256 deductUsd) {}
+
+    function distributeCurveAssets(uint256 amount, uint256[N_COINS] memory delta) external {
+        uint256[N_COINS] memory amounts = ILifeGuard(lifeGuard).distributeCurveVault(amount, delta);
+    }
+
+    function addReferral(address account, address referral) external override {}
+
+    function getStrategiesTargetRatio() external view override returns (uint256[] memory result) {
+        result = new uint256[](2);
+        result[0] = 5000;
+        result[1] = 5000;
+    }
+
+    function validGTokenDecrease(uint256 amount) external view override returns (bool) {}
 }

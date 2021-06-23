@@ -9,6 +9,8 @@ interface IBuoy {
 
     function updateRatios() external returns (bool);
 
+    function updateRatiosWithTolerance(uint256 tolerance) external returns (bool);
+
     function lpToUsd(uint256 inAmount) external view returns (uint256);
 
     function usdToLp(uint256 inAmount) external view returns (uint256);

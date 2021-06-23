@@ -11,12 +11,7 @@ contract MockInsurance is IInsurance {
 
     mapping(uint256 => uint256) public underlyingTokensPercents;
 
-    function calculateDepositDeltasOnAllVaults()
-        external
-        view
-        override
-        returns (uint256[3] memory deltas)
-    {
+    function calculateDepositDeltasOnAllVaults() external view override returns (uint256[3] memory deltas) {
         deltas[0] = 3333;
         deltas[1] = 3333;
         deltas[2] = 3333;
@@ -66,18 +61,13 @@ contract MockInsurance is IInsurance {
 
     function calcSkim() external view override returns (uint256) {}
 
-    function getStrategiesTargetRatio() external view override returns (uint256[] memory result) {
+    function getStrategiesTargetRatio(uint256 utilRatio) external view override returns (uint256[] memory result) {
         result = new uint256[](2);
         result[0] = 5000;
         result[1] = 5000;
     }
 
-    function getDelta(uint256 withdrawUsd)
-        external
-        view
-        override
-        returns (uint256[3] memory delta)
-    {
+    function getDelta(uint256 withdrawUsd) external view override returns (uint256[3] memory delta) {
         withdrawUsd;
         delta[0] = 3000;
         delta[1] = 3000;

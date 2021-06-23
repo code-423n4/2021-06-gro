@@ -4,14 +4,16 @@ pragma solidity >=0.6.0 <0.7.0;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "../interfaces/IERC20Detailed.sol";
-import "../interfaces/ILifeGuard.sol";
-import {ICurve3Deposit} from "../interfaces/ICurve.sol";
-import "../interfaces/IBuoy.sol";
-import "../interfaces/IVault.sol";
+
+import {FixedStablecoins, FixedVaults} from "../common/FixedContracts.sol";
 import "../common/Controllable.sol";
 import "../common/Whitelist.sol";
-import {FixedStablecoins, FixedVaults} from "../common/FixedContracts.sol";
+
+import "../interfaces/IBuoy.sol";
+import "../interfaces/IERC20Detailed.sol";
+import "../interfaces/ILifeGuard.sol";
+import "../interfaces/IVault.sol";
+import {ICurve3Deposit} from "../interfaces/ICurve.sol";
 
 /// @notice Contract for interactions with curve3pool
 ///     Handles asset swapping and investment into underlying vaults for larger deposits.
@@ -27,13 +29,17 @@ import {FixedStablecoins, FixedVaults} from "../common/FixedContracts.sol";
 ///
 ///     In addition the lifeguard allows the system to toggle additional price checks on
 ///     each deposit/withdrawal (see buoy for more details)
-contract LifeGuard3Pool is ILifeGuard, Controllable, FixedStablecoins, Whitelist {
+contract LifeGuard3Pool is ILifeGuard, Controllable, Whitelist, FixedStablecoins {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
     ICurve3Deposit public immutable crv3pool; // curve pool
     IERC20 public immutable lpToken; // Pool token
     IBuoy public immutable buoy; // Oracle
+
+    address public insurance;
+    address public depositHandler;
+    address public withdrawHandler;
 
     uint256 public investToCurveThreshold;
     /// Mapping of asset amounts in lifeguard (DAI, USDC, USDT)
@@ -67,13 +73,22 @@ contract LifeGuard3Pool is ILifeGuard, Controllable, FixedStablecoins, Whitelist
     }
 
     /// @notice Approve the wihtdrawHandler to pull from lifeguard
-    function approveWithdrawer() external onlyOwner {
-        address withdrawer = _controller().withdrawHandler();
+    function setDependencies() external onlyOwner {
+        IController ctrl = _controller();
+        if (withdrawHandler != address(0)) {
+            for (uint256 i = 0; i < N_COINS; i++) {
+                address coin = getToken(i);
+                IERC20(coin).safeApprove(withdrawHandler, uint256(0));
+            }
+        }
+        withdrawHandler = ctrl.withdrawHandler();
         for (uint256 i = 0; i < N_COINS; i++) {
             address coin = getToken(i);
-            IERC20(coin).safeApprove(withdrawer, uint256(0));
-            IERC20(coin).safeApprove(withdrawer, type(uint256).max);
+            IERC20(coin).safeApprove(withdrawHandler, uint256(0));
+            IERC20(coin).safeApprove(withdrawHandler, type(uint256).max);
         }
+        depositHandler = ctrl.depositHandler();
+        insurance = ctrl.insurance();
     }
 
     function getAssets() external view override returns (uint256[N_COINS] memory _assets) {
@@ -127,9 +142,9 @@ contract LifeGuard3Pool is ILifeGuard, Controllable, FixedStablecoins, Whitelist
     function distributeCurveVault(uint256 amount, uint256[N_COINS] memory delta)
         external
         override
-        onlyWhitelist
         returns (uint256[N_COINS] memory)
     {
+        require(msg.sender == controller, "distributeCurveVault: !controller");
         IVault vault = IVault(_controller().curveVault());
 
         vault.withdraw(amount);
@@ -143,7 +158,8 @@ contract LifeGuard3Pool is ILifeGuard, Controllable, FixedStablecoins, Whitelist
 
     /// @notice Deposit lifeguards stablecoins into Curve pool
     /// @param rebalance Is the deposit for a rebalance Y/N
-    function depositStable(bool rebalance) external override onlyWhitelist returns (uint256) {
+    function depositStable(bool rebalance) external override returns (uint256) {
+        require(msg.sender == withdrawHandler || msg.sender == insurance, "depositStable: !depositHandler");
         uint256[N_COINS] memory _inAmounts;
         uint256 countOfStableHasAssets = 0;
         for (uint256 i = 0; i < N_COINS; i++) {
@@ -178,7 +194,8 @@ contract LifeGuard3Pool is ILifeGuard, Controllable, FixedStablecoins, Whitelist
     }
 
     /// @notice Deposit assets into Curve pool
-    function deposit() external override onlyWhitelist returns (uint256 newAssets) {
+    function deposit() external override returns (uint256 newAssets) {
+        require(msg.sender == depositHandler, "depositStable: !depositHandler");
         uint256[N_COINS] memory _inAmounts;
         for (uint256 i = 0; i < N_COINS; i++) {
             IERC20 coin = IERC20(getToken(i));
@@ -199,7 +216,8 @@ contract LifeGuard3Pool is ILifeGuard, Controllable, FixedStablecoins, Whitelist
         uint256 i,
         uint256 minAmount,
         address recipient
-    ) external override onlyWhitelist returns (uint256 usdAmount, uint256 balance) {
+    ) external override returns (uint256, uint256) {
+        require(msg.sender == withdrawHandler, "withdrawSingleByLiquidity: !withdrawHandler");
         IERC20 coin = IERC20(getToken(i));
         crv3pool.remove_liquidity_one_coin(lpToken.balanceOf(address(this)), int128(i), 0);
         uint256 balance = coin.balanceOf(address(this)).sub(assets[i]);
@@ -218,7 +236,8 @@ contract LifeGuard3Pool is ILifeGuard, Controllable, FixedStablecoins, Whitelist
         uint256 i,
         uint256 minAmount,
         address recipient
-    ) external override onlyWhitelist returns (uint256 usdAmount, uint256 balance) {
+    ) external override returns (uint256 usdAmount, uint256 balance) {
+        require(msg.sender == withdrawHandler, "withdrawSingleByExchange: !withdrawHandler");
         IERC20 coin = IERC20(getToken(i));
         balance = coin.balanceOf(address(this)).sub(assets[i]);
         // Are available assets - locked assets for LP vault more than required
@@ -261,9 +280,9 @@ contract LifeGuard3Pool is ILifeGuard, Controllable, FixedStablecoins, Whitelist
     function invest(uint256 depositAmount, uint256[N_COINS] calldata delta)
         external
         override
-        onlyWhitelist
         returns (uint256 dollarAmount)
     {
+        require(msg.sender == insurance || msg.sender == depositHandler, "depositStable: !depositHandler");
         bool needSkim = true;
         if (depositAmount == 0) {
             depositAmount = lpToken.balanceOf(address(this));
@@ -292,7 +311,8 @@ contract LifeGuard3Pool is ILifeGuard, Controllable, FixedStablecoins, Whitelist
         uint256[N_COINS] calldata inAmounts,
         uint256 i,
         uint256 j
-    ) external override onlyWhitelist returns (uint256 dollarAmount) {
+    ) external override returns (uint256 dollarAmount) {
+        require(msg.sender == depositHandler, "!investSingle: !depositHandler");
         // Swap any additional stablecoins to target
         for (uint256 k; k < N_COINS; k++) {
             if (k == i || k == j) continue;

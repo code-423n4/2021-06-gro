@@ -52,8 +52,9 @@ contract('Vault Adaptor Test', function (accounts) {
     // init adaptor
     daiAdaptor = await VaultAdaptorV0_1_3.new(mockDAIVault.address, mockDAI.address);
     await daiAdaptor.setController(mockController.address)
-    await daiAdaptor.addToWhitelist(mockController.address)
-    await daiAdaptor.addToWhitelist(governance)
+    // await daiAdaptor.setWithdrawHandler(mockController.address)
+    // await daiAdaptor.setInsurance(mockController.address)
+    // await daiAdaptor.setLifeGuard(mockLifeGuard.address)
   })
 
   const calculateTrigger = function (
@@ -183,7 +184,7 @@ contract('Vault Adaptor Test', function (accounts) {
 
   describe('withdraw', function () {
     beforeEach(async function () {
-      await daiAdaptor.addToWhitelist(investor1);
+      await mockController.setLifeGuard(investor1);
       const amount = toBN(1000).mul(mockDAIDecimal);
       await mockDAI.mint(investor1, amount);
       await mockDAI.approve(daiAdaptor.address, amount, { from: investor1 });
@@ -192,6 +193,7 @@ contract('Vault Adaptor Test', function (accounts) {
 
     it('withdraw', async () => {
       const amount = toBN(1000).mul(mockDAIDecimal);
+      await mockController.setInsurance(investor1);
       await daiAdaptor.withdraw(amount, investor1, { from: investor1 });
       await expect(mockDAI.balanceOf(investor1)).to.eventually.be.a.bignumber.equal(amount);
       return expect(daiAdaptor.totalAssets()).to.eventually.be.a.bignumber.equal(toBN(0));
@@ -199,6 +201,7 @@ contract('Vault Adaptor Test', function (accounts) {
 
     it('withdrawByStrategyOrder', async () => {
       const amount = toBN(1000).mul(mockDAIDecimal);
+      await mockController.setInsurance(investor1);
       await daiAdaptor.withdrawByStrategyOrder(amount, investor1, false, { from: investor1 });
       await expect(mockDAI.balanceOf(investor1)).to.eventually.be.a.bignumber.equal(amount);
       return expect(daiAdaptor.totalAssets()).to.eventually.be.a.bignumber.equal(toBN(0));
@@ -206,6 +209,7 @@ contract('Vault Adaptor Test', function (accounts) {
 
     it('withdrawByStrategyIndex', async () => {
       const amount = toBN(1000).mul(mockDAIDecimal);
+      await mockController.setInsurance(investor1);
       await daiAdaptor.withdrawByStrategyIndex(amount, investor1, 0, { from: investor1 });
       await expect(mockDAI.balanceOf(investor1)).to.eventually.be.a.bignumber.equal(amount);
       return expect(daiAdaptor.totalAssets()).to.eventually.be.a.bignumber.equal(toBN(0));
@@ -222,12 +226,9 @@ contract('Vault Adaptor Test', function (accounts) {
   });
 
   describe('deposit', function () {
-    beforeEach(async function () {
-      await daiAdaptor.addToWhitelist(investor1);
-    });
-
     it('deposit', async () => {
       const amount = toBN(1000).mul(mockDAIDecimal);
+      await mockController.setLifeGuard(investor1);
       await mockDAI.mint(investor1, amount);
       await mockDAI.approve(daiAdaptor.address, amount, { from: investor1 });
       await daiAdaptor.deposit(amount, { from: investor1 });
@@ -239,6 +240,8 @@ contract('Vault Adaptor Test', function (accounts) {
   describe("invest", function () {
     beforeEach(async function () {
       await daiAdaptor.setInvestThreshold(new BN(10000));
+      await daiAdaptor.addToWhitelist(investor1);
+      await daiAdaptor.addToWhitelist(governance);
     });
 
     it("Should return false when no assets in adaptor", async function () {

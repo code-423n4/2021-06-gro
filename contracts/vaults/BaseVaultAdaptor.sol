@@ -4,14 +4,14 @@ pragma solidity >=0.6.0 <0.7.0;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "contracts/vaults/yearnv2/v032/IYearnV2Vault.sol";
 import "../common/Controllable.sol";
-import "../common/Whitelist.sol";
 import "../interfaces/IVault.sol";
 import "../interfaces/IController.sol";
-import "../interfaces/IInsurance.sol";
 import "../common/Constants.sol";
 import "../interfaces/IERC20Detailed.sol";
+import "../common/Whitelist.sol";
 
 /// @notice Base contract for gro protocol vault adaptors - Vault adaptors act as a
 ///     layer between the protocol and any yield aggregator vault. They provides additional
@@ -132,7 +132,7 @@ abstract contract BaseVaultAdaptor is Controllable, Constants, Whitelist, IVault
         // Check and update strategies debt ratio
         if (strategiesLength > 1) {
             // Only for stablecoin vaults
-            uint256[] memory targetRatios = IInsurance(_controller().insurance()).getStrategiesTargetRatio();
+            uint256[] memory targetRatios = _controller().getStrategiesTargetRatio();
             uint256[] memory currentRatios = getStrategiesDebtRatio();
             bool update;
             for (uint256 i; i < strategiesLength; i++) {
@@ -165,8 +165,11 @@ abstract contract BaseVaultAdaptor is Controllable, Constants, Whitelist, IVault
     /// @notice Withdraw assets from underlying vault
     /// @param amount Amount to withdraw
     /// @dev Sends assets to msg.sender
-    function withdraw(uint256 amount) external override onlyWhitelist {
-        withdraw(amount, msg.sender);
+    function withdraw(uint256 amount) external override {
+        require(msg.sender == _controller().lifeGuard(), "withdraw: !lifeguard");
+        if (!_withdrawFromAdapter(amount, msg.sender)) {
+            amount = _withdraw(calculateShare(amount), msg.sender);
+        }
     }
 
     /// @notice Withdraw assets from underlying vault
@@ -174,7 +177,8 @@ abstract contract BaseVaultAdaptor is Controllable, Constants, Whitelist, IVault
     /// @param recipient Target recipient
     /// @dev Will try to pull assets from adaptor before moving on to pull
     ///     assets from unerlying vault/strategies
-    function withdraw(uint256 amount, address recipient) public override onlyWhitelist {
+    function withdraw(uint256 amount, address recipient) external override {
+        require(msg.sender == _controller().insurance(), "withdraw: !insurance");
         if (!_withdrawFromAdapter(amount, recipient)) {
             amount = _withdraw(calculateShare(amount), recipient);
         }
@@ -182,7 +186,7 @@ abstract contract BaseVaultAdaptor is Controllable, Constants, Whitelist, IVault
 
     /// @notice Withdraw assets from vault to vault adaptor
     /// @param amount Amount to withdraw
-    function withdrawToAdapter(uint256 amount) external onlyWhitelist {
+    function withdrawToAdapter(uint256 amount) external onlyOwner {
         amount = _withdraw(calculateShare(amount), address(this));
     }
 
@@ -197,7 +201,14 @@ abstract contract BaseVaultAdaptor is Controllable, Constants, Whitelist, IVault
         uint256 amount,
         address recipient,
         bool reversed
-    ) external override onlyWhitelist {
+    ) external override {
+        IController ctrl = _controller();
+        require(
+            msg.sender == ctrl.withdrawHandler() ||
+                msg.sender == ctrl.insurance() ||
+                msg.sender == ctrl.emergencyHandler(),
+            "withdraw: !withdrawHandler/insurance"
+        );
         if (!_withdrawFromAdapter(amount, recipient)) {
             amount = _withdrawByStrategyOrder(calculateShare(amount), recipient, reversed);
         }
@@ -213,7 +224,8 @@ abstract contract BaseVaultAdaptor is Controllable, Constants, Whitelist, IVault
         uint256 amount,
         address recipient,
         uint256 strategyIndex
-    ) external override onlyWhitelist {
+    ) external override {
+        require(msg.sender == _controller().insurance(), "withdraw: !withdrawHandler/insurance");
         if (!_withdrawFromAdapter(amount, recipient)) {
             amount = _withdrawByStrategyIndex(calculateShare(amount), recipient, strategyIndex);
         }
@@ -240,27 +252,26 @@ abstract contract BaseVaultAdaptor is Controllable, Constants, Whitelist, IVault
 
     /// @notice Deposit assets into the vault adaptor
     /// @param amount Deposit amount
-    function deposit(uint256 amount) external override onlyWhitelist {
+    function deposit(uint256 amount) external override {
+        require(msg.sender == _controller().lifeGuard(), "withdraw: !lifeguard");
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
     }
 
     /// @notice Set new strategy debt ratios
-    /// @param strategyRetios Array of new debt ratios
-    function updateStrategyRatio(uint256[] calldata strategyRetios) external override onlyWhitelist {
-        updateStrategiesDebtRatio(strategyRetios);
-        emit LogNewDebtRatios(strategyRetios);
+    /// @param strategyRatios Array of new debt ratios
+    function updateStrategyRatio(uint256[] calldata strategyRatios) external override {
+        require(
+            msg.sender == _controller().insurance() || msg.sender == owner(),
+            "!updateStrategyRatio: !owner/insurance"
+        );
+        updateStrategiesDebtRatio(strategyRatios);
+        emit LogNewDebtRatios(strategyRatios);
     }
 
     /// @notice Check if underlying strategy needs to be harvested
     /// @param index Index of stratey
     /// @param callCost Cost of harvest
-    function strategyHarvestTrigger(uint256 index, uint256 callCost)
-        external
-        view
-        override
-        onlyWhitelist
-        returns (bool harvested)
-    {
+    function strategyHarvestTrigger(uint256 index, uint256 callCost) external view override returns (bool harvested) {
         require(index < strategiesLength, "invalid index");
         return _strategyHarvestTrigger(index, callCost);
     }

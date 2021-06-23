@@ -130,38 +130,23 @@ contract VaultAdaptorYearnV2_032 is BaseVaultAdaptor {
         }
     }
 
-    function _strategyHarvestTrigger(uint256 index, uint256 callCost)
-        internal
-        view
-        override
-        returns (bool)
-    {
+    function _strategyHarvestTrigger(uint256 index, uint256 callCost) internal view override returns (bool) {
         IYearnV2Vault yearnVault = IYearnV2Vault(vault);
         return IYearnV2Strategy(yearnVault.withdrawalQueue(index)).harvestTrigger(callCost);
     }
 
-    function getStrategyEstimatedTotalAssets(uint256 index)
-        internal
-        view
-        override
-        returns (uint256)
-    {
+    function getStrategyEstimatedTotalAssets(uint256 index) internal view override returns (uint256) {
         IYearnV2Vault yearnVault = IYearnV2Vault(vault);
         return IYearnV2Strategy(yearnVault.withdrawalQueue(index)).estimatedTotalAssets();
     }
 
     function getStrategyTotalAssets(uint256 index) internal view override returns (uint256) {
         IYearnV2Vault yearnVault = IYearnV2Vault(vault);
-        StrategyParams memory strategyParam =
-            yearnVault.strategies(yearnVault.withdrawalQueue(index));
+        StrategyParams memory strategyParam = yearnVault.strategies(yearnVault.withdrawalQueue(index));
         return strategyParam.totalDebt;
     }
 
-    function _withdraw(uint256 share, address recipient)
-        internal
-        override
-        returns (uint256 withdrawalAmount)
-    {
+    function _withdraw(uint256 share, address recipient) internal override returns (uint256 withdrawalAmount) {
         (, , withdrawalAmount, ) = IYearnV2Vault(vault).withdraw(share, recipient, 1);
     }
 

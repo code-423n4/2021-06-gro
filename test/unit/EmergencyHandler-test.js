@@ -95,8 +95,6 @@ contract('EmergencyHandler Test', function (accounts) {
         await controller.setCurveVault(mockCurveVault.address);
 
         depositHandler = await DepositHandler.new(
-            mockPWRD.address,
-            mockVault.address,
             '2',
             vaults,
             tokens,
@@ -104,8 +102,7 @@ contract('EmergencyHandler Test', function (accounts) {
         );
         await controller.setDepositHandler(depositHandler.address);
         await depositHandler.setController(controller.address);
-        await depositHandler.setUtilisationRatioLimitPwrd(toBN(10000));
-        await pnl.addToWhitelist(depositHandler.address);
+        await controller.setUtilisationRatioLimitPwrd(toBN(10000));
         await controller.addToWhitelist(depositHandler.address);
 
         emergencyHandler = await EmergencyHandler.new(
@@ -117,21 +114,16 @@ contract('EmergencyHandler Test', function (accounts) {
             decimals
         );
         withdrawHandler = await WithdrawHandler.new(
-            mockPWRD.address,
-            mockVault.address,
-            emergencyHandler.address,
             vaults,
             tokens,
             decimals
         );
-        await controller.setWithdrawHandler(withdrawHandler.address);
+        await controller.setWithdrawHandler(withdrawHandler.address, emergencyHandler.address);
         await withdrawHandler.setController(controller.address);
-        await withdrawHandler.setUtilisationRatioLimitGvt(toBN(10000));
-        await pnl.addToWhitelist(withdrawHandler.address);
-        await pnl.addToWhitelist(emergencyHandler.address);
+        await controller.setUtilisationRatioLimitGvt(toBN(10000));
         await controller.addToWhitelist(withdrawHandler.address);
 
-        await withdrawHandler.setWithdrawalFee(false, 50);
+        await controller.setWithdrawalFee(false, 50);
         await emergencyHandler.setController(controller.address);
 
         await controller.setBigFishThreshold(1000, toBN(1000).mul(baseNum));

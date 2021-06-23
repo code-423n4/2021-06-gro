@@ -90,8 +90,6 @@ contract('DepositHandler Test', function (accounts) {
         await controller.setCurveVault(mockCurveVault.address);
 
         depositHandler = await DepositHandler.new(
-            mockPWRD.address,
-            mockVault.address,
             '2',
             vaults,
             tokens,
@@ -99,10 +97,9 @@ contract('DepositHandler Test', function (accounts) {
         );
         await controller.setDepositHandler(depositHandler.address);
         await depositHandler.setController(controller.address);
-        await depositHandler.setUtilisationRatioLimitPwrd(toBN(10000));
+        await controller.setUtilisationRatioLimitPwrd(toBN(10000));
         await mockVault.transferOwnership(depositHandler.address);
         await mockPWRD.transferOwnership(depositHandler.address);
-        await pnl.addToWhitelist(depositHandler.address);
         await controller.addToWhitelist(depositHandler.address);
 
         await mockDAI.mint(investor1, new BN(10000).mul(daiBaseNum), { from: deployer });
@@ -175,7 +172,7 @@ contract('DepositHandler Test', function (accounts) {
                     { from: investor1 }
                 );
 
-                await depositHandler.setUtilisationRatioLimitPwrd(toBN(5000));
+                await controller.setUtilisationRatioLimitPwrd(toBN(5000));
 
                 investAmount = [new BN(200).mul(daiBaseNum), new BN(0), new BN(0)];
                 lp = await mockBuoy.stableToLp(investAmount, true);
@@ -186,7 +183,7 @@ contract('DepositHandler Test', function (accounts) {
                     lpWithSlippage,
                     ZERO,
                     { from: investor1 }
-                )).to.be.rejectedWith('exceeds utilisation limit');
+                )).to.be.rejected;
             });
 
             it('Should revert when investor not have enough balance ', async function () {

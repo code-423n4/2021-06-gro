@@ -97,12 +97,8 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
     /// @notice Set allocation target for stablecoins
     /// @param coinIndex Protocol index of stablecoin
     /// @param percent Target allocation percent
-    function setUnderlyingTokenPercent(uint256 coinIndex, uint256 percent)
-        external
-        override
-        onlyWhitelist
-        onlyValidIndex(coinIndex)
-    {
+    function setUnderlyingTokenPercent(uint256 coinIndex, uint256 percent) external override onlyValidIndex(coinIndex) {
+        require(msg.sender == controller || msg.sender == owner(), "setUnderlyingTokenPercent: !authorized");
         underlyingTokensPercents[coinIndex] = percent;
         emit LogNewTargetAllocation(coinIndex, percent);
     }
@@ -204,11 +200,6 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
     ///     After which it will pull assets out from overexposed vaults and invest the freed up assets
     ///     to the other stablecoin vaults.
     function rebalance() external override onlyWhitelist {
-        // IPnL pnl = IPnL(_controller().pnl());
-        // if (pnl.pnlTrigger()) {
-        //     pnl.execPnL(0);
-        // }
-
         SystemState memory sysState = prepareCalculation();
         sysState.utilisationRatio = IPnL(_controller().pnl()).utilisationRatio();
         sysState.rebalanceThreshold = PERCENTAGE_DECIMAL_FACTOR.sub(sysState.utilisationRatio.div(2)).sub(
@@ -227,7 +218,8 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
     ///     on the amount withdrawn, and rebalances to get additional assets for withdrawal
     /// @param withdrawUsd Target USD amount to withdraw
     /// @param pwrd Pwrd or gvt
-    function rebalanceForWithdraw(uint256 withdrawUsd, bool pwrd) external override onlyWhitelist returns (bool) {
+    function rebalanceForWithdraw(uint256 withdrawUsd, bool pwrd) external override returns (bool) {
+        require(msg.sender == _controller().withdrawHandler(), "rebalanceForWithdraw: !withdrawHandler");
         return withdraw(withdrawUsd, pwrd);
     }
 
@@ -247,9 +239,8 @@ contract Insurance is Constants, Controllable, Whitelist, IInsurance {
     }
 
     /// @notice Calculate assets distribution for strategies
-    function getStrategiesTargetRatio() external view override returns (uint256[] memory) {
-        uint256 utilisationRatio = IPnL(_controller().pnl()).utilisationRatio();
-        return allocation.calcStrategyPercent(utilisationRatio);
+    function getStrategiesTargetRatio(uint256 utilRatio) external view override returns (uint256[] memory) {
+        return allocation.calcStrategyPercent(utilRatio);
     }
 
     /// @notice Get protocol and vault total assets

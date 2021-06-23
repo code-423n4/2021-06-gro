@@ -4,7 +4,6 @@ pragma solidity >=0.6.0 <0.7.0;
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "../interfaces/IPnL.sol";
 import "../common/Controllable.sol";
-import "../common/Whitelist.sol";
 import "../interfaces/IPnL.sol";
 import "../common/Constants.sol";
 import {FixedGTokens} from "../common/FixedContracts.sol";
@@ -44,7 +43,7 @@ import {FixedGTokens} from "../common/FixedContracts.sol";
 ///                 - if successfull, it will try to realize any price changes (pre tvl vs current)
 ///         - Withdrawals
 ///             - Any user withdrawals are distributing the holder fee to the other users
-contract PnL is Controllable, Constants, Whitelist, FixedGTokens, IPnL {
+contract PnL is Controllable, Constants, FixedGTokens, IPnL {
     using SafeMath for uint256;
 
     uint256 public override lastGvtAssets;
@@ -94,33 +93,51 @@ contract PnL is Controllable, Constants, Whitelist, FixedGTokens, IPnL {
     }
 
     /// @notice Increase previously recorded GToken assets by specific amount
-    /// @param gTokenAddress Gvt/pwrd address
+    /// @param pwrd pwrd/gvt
     /// @param dollarAmount Amount to increase by
-    function increaseGTokenLastAmount(address gTokenAddress, uint256 dollarAmount) external override onlyWhitelist {
-        bool _pwrd;
-        if (gTokenAddress == address(gvt)) {
+    function increaseGTokenLastAmount(bool pwrd, uint256 dollarAmount) external override {
+        require(msg.sender == controller, "increaseGTokenLastAmount: !controller");
+        if (!pwrd) {
             lastGvtAssets = lastGvtAssets.add(dollarAmount);
-        }
-        if (gTokenAddress == address(pwrd)) {
+        } else {
             lastPwrdAssets = lastPwrdAssets.add(dollarAmount);
-            _pwrd = true;
         }
-        emit LogNewGtokenChange(_pwrd, int256(dollarAmount));
+        emit LogNewGtokenChange(pwrd, int256(dollarAmount));
     }
 
     /// @notice Decrease previously recorded GToken assets by specific amount
-    /// @param gTokenAddress Gvt/pwrd address
+    /// @param pwrd pwrd/gvt
     /// @param dollarAmount Amount to decrease by
-    function decreaseGTokenLastAmount(address gTokenAddress, uint256 dollarAmount) external override onlyWhitelist {
-        bool _pwrd;
-        if (gTokenAddress == address(gvt)) {
-            lastGvtAssets = dollarAmount > lastGvtAssets ? 0 : lastGvtAssets.sub(dollarAmount);
+    /// @param bonus hodler bonus
+    function decreaseGTokenLastAmount(
+        bool pwrd,
+        uint256 dollarAmount,
+        uint256 bonus
+    ) external override {
+        require(msg.sender == controller, "decreaseGTokenLastAmount: !controller");
+        uint256 lastGA = lastGvtAssets;
+        uint256 lastPA = lastPwrdAssets;
+        if (!pwrd) {
+            lastGA = dollarAmount > lastGA ? 0 : lastGA.sub(dollarAmount);
+        } else {
+            lastPA = dollarAmount > lastPA ? 0 : lastPA.sub(dollarAmount);
         }
-        if (gTokenAddress == address(pwrd)) {
-            lastPwrdAssets = dollarAmount > lastPwrdAssets ? 0 : lastPwrdAssets.sub(dollarAmount);
-            _pwrd = true;
+        if (bonus > 0) {
+            uint256 preGABeforeBonus = lastGA;
+            uint256 prePABeforeBonus = lastPA;
+            uint256 preTABeforeBonus = preGABeforeBonus.add(prePABeforeBonus);
+            if (rebase) {
+                lastGA = preGABeforeBonus.add(bonus.mul(preGABeforeBonus).div(preTABeforeBonus));
+                lastPA = prePABeforeBonus.add(bonus.mul(prePABeforeBonus).div(preTABeforeBonus));
+            } else {
+                lastGA = preGABeforeBonus.add(bonus);
+            }
+            emit LogPnLExecution(0, int256(bonus), 0, 0, bonus, 0, preGABeforeBonus, prePABeforeBonus, lastGA, lastPA);
         }
-        emit LogNewGtokenChange(_pwrd, int256(-dollarAmount));
+
+        lastGvtAssets = lastGA;
+        lastPwrdAssets = lastPA;
+        emit LogNewGtokenChange(pwrd, int256(-dollarAmount));
     }
 
     /// @notice Return latest system asset states
@@ -133,13 +150,13 @@ contract PnL is Controllable, Constants, Whitelist, FixedGTokens, IPnL {
         return lastGvtAssets != 0 ? lastPwrdAssets.mul(PERCENTAGE_DECIMAL_FACTOR).div(lastGvtAssets) : 0;
     }
 
-    /// @notice Update assets after entering emergency state 
+    /// @notice Update assets after entering emergency state
     function emergencyPnL() external override {
         require(msg.sender == controller, "emergencyPnL: !controller");
         forceDistribute();
     }
 
-    /// @notice Recover system from emergency state 
+    /// @notice Recover system from emergency state
     function recover() external override {
         require(msg.sender == controller, "recover: !controller");
         forceDistribute();
@@ -221,7 +238,11 @@ contract PnL is Controllable, Constants, Whitelist, FixedGTokens, IPnL {
         }
     }
 
-    function distributeStrategyGainLoss(uint256 gain, uint256 loss) external override {
+    function distributeStrategyGainLoss(
+        uint256 gain,
+        uint256 loss,
+        address reward
+    ) external override {
         require(msg.sender == controller, "!Controller");
         uint256 lastGA = lastGvtAssets;
         uint256 lastPA = lastPwrdAssets;
@@ -230,7 +251,6 @@ contract PnL is Controllable, Constants, Whitelist, FixedGTokens, IPnL {
         uint256 pwrdAssets;
         int256 investPnL;
         if (gain > 0) {
-            address reward = _controller().reward();
             (gvtAssets, pwrdAssets, performanceBonus) = handleInvestGain(lastGA, lastPA, gain, reward);
             if (performanceBonus > 0) {
                 gvt.mint(reward, gvt.factor(gvtAssets), performanceBonus);
@@ -284,20 +304,5 @@ contract PnL is Controllable, Constants, Whitelist, FixedGTokens, IPnL {
             lastGvtAssets,
             lastPwrdAssets
         );
-    }
-
-    function distributeHodlerBonus(uint256 bonus) external override {
-        require(msg.sender == controller, "!Controller");
-        uint256 lastGA = lastGvtAssets;
-        uint256 lastPA = lastPwrdAssets;
-        uint256 lastTA = lastGA.add(lastPA);
-        if (rebase) {
-            lastGvtAssets = lastGA.add(bonus.mul(lastGA).div(lastTA));
-            lastPwrdAssets = lastPA.add(bonus.mul(lastPA).div(lastTA));
-        } else {
-            lastGvtAssets = lastGA.add(bonus);
-        }
-
-        emit LogPnLExecution(0, int256(bonus), 0, 0, bonus, 0, lastGA, lastPA, lastGvtAssets, lastPwrdAssets);
     }
 }

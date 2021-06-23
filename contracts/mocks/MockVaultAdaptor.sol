@@ -78,9 +78,7 @@ contract MockVaultAdaptor is IVault, Constants {
         vault = _vault;
     }
 
-    function setHarvestQueueAndLimits(address[] calldata _queue, uint256[] calldata _debtLimits)
-        external
-    {
+    function setHarvestQueueAndLimits(address[] calldata _queue, uint256[] calldata _debtLimits) external {
         harvestQueue = _queue;
         expectedDebtLimits = _debtLimits;
     }
@@ -89,22 +87,13 @@ contract MockVaultAdaptor is IVault, Constants {
         underlyingToken.approve(account, amount);
     }
 
-    function getHarvestQueueAndLimits()
-        external
-        view
-        returns (address[] memory, uint256[] memory)
-    {
+    function getHarvestQueueAndLimits() external view returns (address[] memory, uint256[] memory) {
         return (harvestQueue, expectedDebtLimits);
     }
 
     function strategyHarvest(uint256 _index) external override returns (bool) {}
 
-    function strategyHarvestTrigger(uint256 _index, uint256 _callCost)
-        external
-        view
-        override
-        returns (bool)
-    {}
+    function strategyHarvestTrigger(uint256 _index, uint256 _callCost) external view override returns (bool) {}
 
     function deposit(uint256 _amount) external override {
         underlyingToken.transferFrom(msg.sender, address(this), _amount);

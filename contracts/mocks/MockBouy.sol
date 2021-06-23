@@ -44,38 +44,20 @@ contract MockBuoy is IBuoy, IChainPrice, Whitelist, Constants {
         return inAmount.mul(DEFAULT_DECIMALS_FACTOR).div(vp);
     }
 
-    function stableToUsd(uint256[3] calldata inAmounts, bool _deposit)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function stableToUsd(uint256[3] calldata inAmounts, bool _deposit) external view override returns (uint256) {
         return _stableToUsd(inAmounts, _deposit);
     }
 
-    function _stableToUsd(uint256[3] memory inAmounts, bool _deposit)
-        private
-        view
-        returns (uint256)
-    {
+    function _stableToUsd(uint256[3] memory inAmounts, bool _deposit) private view returns (uint256) {
         uint256 lp = _stableToLp(inAmounts, _deposit);
         return _lpToUsd(lp);
     }
 
-    function stableToLp(uint256[3] calldata inAmounts, bool _deposit)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function stableToLp(uint256[3] calldata inAmounts, bool _deposit) external view override returns (uint256) {
         return _stableToLp(inAmounts, _deposit);
     }
 
-    function _stableToLp(uint256[3] memory inAmounts, bool deposit)
-        private
-        view
-        returns (uint256)
-    {
+    function _stableToLp(uint256[3] memory inAmounts, bool deposit) private view returns (uint256) {
         deposit;
         uint256 totalAmount;
         for (uint256 i = 0; i < vpSingle.length; i++) {
@@ -84,12 +66,7 @@ contract MockBuoy is IBuoy, IChainPrice, Whitelist, Constants {
         return totalAmount;
     }
 
-    function singleStableFromLp(uint256 inAmount, int128 i)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function singleStableFromLp(uint256 inAmount, int128 i) external view override returns (uint256) {
         return _singleStableFromLp(inAmount, uint256(i));
     }
 
@@ -97,23 +74,13 @@ contract MockBuoy is IBuoy, IChainPrice, Whitelist, Constants {
         return inAmount.mul(10**18).div(vpSingle[i]).div(10**(18 - decimals[i]));
     }
 
-    function singleStableToUsd(uint256 inAmount, uint256 i)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function singleStableToUsd(uint256 inAmount, uint256 i) external view override returns (uint256) {
         uint256[3] memory inAmounts;
         inAmounts[i] = inAmount;
         return _stableToUsd(inAmounts, true);
     }
 
-    function singleStableFromUsd(uint256 inAmount, int128 i)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function singleStableFromUsd(uint256 inAmount, int128 i) external view override returns (uint256) {
         return _singleStableFromLp(usdToLp(inAmount), uint256(i));
     }
 
@@ -129,8 +96,9 @@ contract MockBuoy is IBuoy, IChainPrice, Whitelist, Constants {
 
     function updateRatios() external override returns (bool) {}
 
+    function updateRatiosWithTolerance(uint256 tolerance) external override returns (bool) {}
+
     function getPriceFeed(uint256 i) external view override returns (uint256 _price) {
         return chainPrices[i];
     }
-
 }

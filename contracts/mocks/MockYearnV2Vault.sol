@@ -60,12 +60,7 @@ contract MockYearnV2Vault is ERC20, IYearnV2Vault {
         }
     }
 
-    function strategies(address _strategy)
-        external
-        view
-        override
-        returns (StrategyParams memory result)
-    {
+    function strategies(address _strategy) external view override returns (StrategyParams memory result) {
         result.debtRatio = strategiesDebtRatio[_strategy];
     }
 
@@ -116,7 +111,12 @@ contract MockYearnV2Vault is ERC20, IYearnV2Vault {
     )
         external
         override
-        returns (uint256, uint256, uint256, uint256)
+        returns (
+            uint256,
+            uint256,
+            uint256,
+            uint256
+        )
     {
         maxLoss;
         uint256 _total = token.balanceOf(address(this));
@@ -154,9 +154,7 @@ contract MockYearnV2Vault is ERC20, IYearnV2Vault {
             uint256 inAmount = strategiesDebtLimit[strategy].sub(sBalance);
             token.safeTransfer(
                 strategy,
-                inAmount > token.balanceOf(address(this))
-                    ? token.balanceOf(address(this))
-                    : inAmount
+                inAmount > token.balanceOf(address(this)) ? token.balanceOf(address(this)) : inAmount
             );
         }
     }
@@ -177,10 +175,7 @@ contract MockYearnV2Vault is ERC20, IYearnV2Vault {
         if (this.totalAssets() == 0) {
             return uint256(10)**IERC20Detailed(address(token)).decimals();
         } else {
-            return
-                this.totalAssets().mul(IERC20Detailed(address(token)).decimals()).div(
-                    this.totalSupply()
-                );
+            return this.totalAssets().mul(IERC20Detailed(address(token)).decimals()).div(this.totalSupply());
         }
     }
 

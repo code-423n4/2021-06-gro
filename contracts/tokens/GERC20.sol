@@ -163,10 +163,7 @@ abstract contract GERC20 is Context, IERC20 {
         _approve(
             sender,
             _msgSender(),
-            _allowances[sender][_msgSender()].sub(
-                amount,
-                "ERC20: transfer amount exceeds allowance"
-            )
+            _allowances[sender][_msgSender()].sub(amount, "ERC20: transfer amount exceeds allowance")
         );
         return true;
     }
@@ -202,18 +199,11 @@ abstract contract GERC20 is Context, IERC20 {
      * - `spender` must have allowance for the caller of at least
      * `subtractedValue`.
      */
-    function decreaseAllowance(address spender, uint256 subtractedValue)
-        public
-        virtual
-        returns (bool)
-    {
+    function decreaseAllowance(address spender, uint256 subtractedValue) public virtual returns (bool) {
         _approve(
             _msgSender(),
             spender,
-            _allowances[_msgSender()][spender].sub(
-                subtractedValue,
-                "ERC20: decreased allowance below zero"
-            )
+            _allowances[_msgSender()][spender].sub(subtractedValue, "ERC20: decreased allowance below zero")
         );
         return true;
     }
@@ -243,10 +233,7 @@ abstract contract GERC20 is Context, IERC20 {
 
         _beforeTokenTransfer(sender, recipient, transferAmount);
 
-        _balances[sender] = _balances[sender].sub(
-            transferAmount,
-            "ERC20: transfer amount exceeds balance"
-        );
+        _balances[sender] = _balances[sender].sub(transferAmount, "ERC20: transfer amount exceeds balance");
         _balances[recipient] = _balances[recipient].add(transferAmount);
         emit Transfer(sender, recipient, amount);
     }
@@ -296,10 +283,7 @@ abstract contract GERC20 is Context, IERC20 {
 
         _beforeTokenTransfer(account, address(0), burnAmount);
 
-        _balances[account] = _balances[account].sub(
-            burnAmount,
-            "ERC20: burn amount exceeds balance"
-        );
+        _balances[account] = _balances[account].sub(burnAmount, "ERC20: burn amount exceeds balance");
         _totalSupply = _totalSupply.sub(burnAmount);
         emit Transfer(account, address(0), amount);
     }

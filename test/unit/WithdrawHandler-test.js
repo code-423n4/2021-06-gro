@@ -88,17 +88,12 @@ contract('WithdrawHandler Test', function (accounts) {
         await mockCurveVault.setUnderlyingToken(mockLPToken.address);
 
         await controller.addToWhitelist(governance, { from: governance });
-        //await controller.setVault(0, mockDAIVault.address, { from: governance });
-        //await controller.setVault(1, mockUSDCVault.address, { from: governance });
-        //await controller.setVault(2, mockUSDTVault.address, { from: governance });
         await controller.setVault(0, mockDAIVault.address);
         await controller.setVault(1, mockUSDCVault.address);
         await controller.setVault(2, mockUSDTVault.address);
         await controller.setCurveVault(mockCurveVault.address);
 
         depositHandler = await DepositHandler.new(
-            mockPWRD.address,
-            mockVault.address,
             '2',
             vaults,
             tokens,
@@ -106,8 +101,7 @@ contract('WithdrawHandler Test', function (accounts) {
         );
         await controller.setDepositHandler(depositHandler.address);
         await depositHandler.setController(controller.address);
-        await depositHandler.setUtilisationRatioLimitPwrd(toBN(10000));
-        await pnl.addToWhitelist(depositHandler.address);
+        await controller.setUtilisationRatioLimitPwrd(toBN(10000));
         await controller.addToWhitelist(depositHandler.address);
 
         emergencyHandler = await EmergencyHandler.new(
@@ -119,21 +113,16 @@ contract('WithdrawHandler Test', function (accounts) {
             decimals
         );
         withdrawHandler = await WithdrawHandler.new(
-            mockPWRD.address,
-            mockVault.address,
-            emergencyHandler.address,
             vaults,
             tokens,
             decimals
         );
-        await controller.setWithdrawHandler(withdrawHandler.address);
+        await controller.setWithdrawHandler(withdrawHandler.address, emergencyHandler.address);
         await withdrawHandler.setController(controller.address);
-        await withdrawHandler.setUtilisationRatioLimitGvt(toBN(10000));
-        await pnl.addToWhitelist(withdrawHandler.address);
-        await pnl.addToWhitelist(emergencyHandler.address);
+        await controller.setUtilisationRatioLimitGvt(toBN(10000));
         await controller.addToWhitelist(withdrawHandler.address);
 
-        await withdrawHandler.setWithdrawalFee(false, 50);
+        await controller.setWithdrawalFee(false, 50);
         await emergencyHandler.setController(controller.address);
 
         await controller.setBigFishThreshold(1000, toBN(1000).mul(baseNum));
@@ -186,10 +175,10 @@ contract('WithdrawHandler Test', function (accounts) {
             );
         })
 
-        it('Should revert when paused', async function () {
+        it('Should work when paused', async function () {
             await controller.pause({ from: governance });
             const amounts = [new BN(10).mul(daiBaseNum), new BN(0), new BN(0)];
-            return expect(withdrawHandler.withdrawByLPToken(false, 1, amounts, { from: investor1 })).to.be.rejected;
+            return expect(withdrawHandler.withdrawByLPToken(false, 1, amounts, { from: investor1 })).to.be.fulfilled;
         })
 
         it('Should revert when lpAmount values are zero', async function () {
@@ -222,13 +211,13 @@ contract('WithdrawHandler Test', function (accounts) {
             amounts = await calcWithdrawTokens(lpWithoutFee);
             //add system slippage
 
-            await withdrawHandler.setUtilisationRatioLimitGvt(toBN(8500));
+            await controller.setUtilisationRatioLimitGvt(toBN(8500));
             return expect(withdrawHandler.withdrawByLPToken(
                 false,
                 lp,
                 amounts,
                 { from: investor1 }
-            )).to.be.rejectedWith('exceeds utilisation limit');
+            )).to.be.rejected;
         })
 
         it('Should revert when user balance is not enough', async function () {
@@ -309,7 +298,6 @@ contract('WithdrawHandler Test', function (accounts) {
             const vaultUSDCPost = await mockUSDC.balanceOf(mockUSDCVault.address);
             const vaultUSDTPost = await mockUSDT.balanceOf(mockUSDTVault.address);
 
-
             await expect(controller.gTokenTotalAssets({ from: mockVault.address })).to.eventually.be.a.bignumber
                 .closeTo(toBN(400).mul(baseNum).add(usd.mul(toBN(5)).div(toBN(1000))), toBN(1).mul(baseNum).div(toBN(10)));
             await expect(controller.totalAssets()).to.eventually.be.a.bignumber
@@ -379,8 +367,12 @@ contract('WithdrawHandler Test', function (accounts) {
             const initialPwrd = await mockPWRD.balanceOf(investor1);
             const initialUsdc = await mockUSDC.balanceOf(investor1);
             await controller.pause({ from: governance });
-            await expect(withdrawHandler.withdrawByStablecoin(
-                true, 1, '50000000000000000000', 0, { from: investor1 })
+            lp = await mockBuoy.usdToLp('50000000000000000000');
+            let lpWithoutFee = lp.sub(lp.mul(toBN('50')).div(toBN('10000')));
+            let token = await calcWithdrawToken(lpWithoutFee, 1);
+            await mockLifeGuard.setInAmounts([0, token, 0])
+            await expect(
+               withdrawHandler.withdrawByStablecoin(true, 1, lp, 0, { from: investor1 })
             ).to.eventually.be.fulfilled;
             await expect(mockPWRD.balanceOf(investor1)).to.eventually.be.a.bignumber.lessThan(initialPwrd);
             await expect(mockUSDC.balanceOf(investor1)).to.eventually.be.a.bignumber.greaterThan(initialUsdc);
@@ -388,57 +380,26 @@ contract('WithdrawHandler Test', function (accounts) {
             await controller.setBigFishThreshold(1, 0);
             const userPwrd = await mockPWRD.getAssets(investor1);
             await mockLifeGuard.setInAmounts([userPwrd, 0, 0])
+            lp = await mockBuoy.usdToLp(userPwrd);
+            lpWithoutFee = lp.sub(lp.mul(toBN('50')).div(toBN('10000')));
+            token = await calcWithdrawToken(lpWithoutFee, 1);
+            await mockLifeGuard.setInAmounts([token, 0, 0])
             await expect(
-                withdrawHandler.withdrawAllSingle(true, 0, 0, { from: investor1 })
+               withdrawHandler.withdrawAllSingle(true, 0, 0, { from: investor1 })
             ).to.eventually.be.fulfilled
             await expect(mockPWRD.balanceOf(investor1)).to.eventually.be.a.bignumber.equal(new BN('0'));
             return expect(mockDAI.balanceOf(investor1)).to.eventually.be.a.bignumber.greaterThan(initialDAI);
         })
 
-        it.skip('Should allow to withdraw pwrd when stopped', async function () {
-            const investAmount = [
-                toBN(100).mul(daiBaseNum),
-                toBN(100).mul(usdcBaseNum),
-                toBN(100).mul(usdtBaseNum)
-            ];
-
-            await mockDAI.approve(depositHandler.address, investAmount[0], { from: investor1 });
-            await mockUSDC.approve(depositHandler.address, investAmount[1], { from: investor1 });
-            await mockUSDT.approve(depositHandler.address, investAmount[2], { from: investor1 });
-            let lp = await mockBuoy.stableToLp(investAmount, true);
-            let lpWithSlippage = lp.sub(lp.div(new BN("10000")));
-            await depositHandler.depositPwrd(
-                investAmount,
-                lpWithSlippage,
-                ZERO,
-                { from: investor1 }
-            );
-            const initialPwrd = await mockPWRD.balanceOf(investor1);
-            // await controller.stop({ from: governance });
-            const initialDAI = await mockDAI.balanceOf(investor1);
-            const pwrdDollarAssets = await pnl.lastPwrdAssets()
-            await expect(
-                withdrawHandler.withdrawAllSingle(true, 0, 1, { from: investor1 })
-            ).to.eventually.be.fulfilled
-            await expect(mockPWRD.balanceOf(investor1)).to.eventually.be.a.bignumber.lessThan(initialPwrd);
-            await expect(pnl.lastPwrdAssets()).to.eventually.be.a.bignumber.lessThan(pwrdDollarAssets);
-            return expect(mockDAI.balanceOf(investor1)).to.eventually.be.a.bignumber.greaterThan(initialDAI);
-        })
-
-        it.skip('Should not allow withdrawals when fully stopped', async function () {
-            // await controller.handbreakUp({ from: governance });
-            await expect(withdrawHandler.withdrawByStablecoin(false, 1, 1000, 1, { from: investor1 }))
-                .to.be.rejected;
-            return expect(withdrawHandler.withdrawAllSingle(true, 1, 1, { from: investor1 })).to.be.rejected;
-        })
-
-        it('Should revert when paused', async function () {
-            await controller.pause({ from: governance });
+        it('Should revert balanced withdrawals when in emergency when paused', async function () {
+            await controller.emergency(0, { from: governance });
             return expect(withdrawHandler.withdrawByLPToken(false, 0, 1, 1, { from: investor1 })).to.be.rejected;
         })
 
-        it('Should revert when lpAmount values are zero', function () {
-            return expect(withdrawHandler.withdrawByStablecoin(false, 0, 0, 1, { from: investor1 })).to.be.rejectedWith('!minAmount');
+        it('Should revert when lpAmount values are zero', async function () {
+            return expect(
+                withdrawHandler.withdrawByStablecoin(false, 0, 0, 0, { from: investor1 })
+            ).to.be.rejected;
         })
 
         it('Should revert when gvt amounts less than pwrd amounts', async function () {
@@ -469,7 +430,7 @@ contract('WithdrawHandler Test', function (accounts) {
                 lp,
                 scAmount,
                 { from: investor1 }
-            )).to.be.rejectedWith('exceeds utilisation limit');
+            )).to.be.rejected;
         })
 
         it('Should revert when user balance is not enough', async function () {
@@ -612,7 +573,7 @@ contract('WithdrawHandler Test', function (accounts) {
                 { from: investor2 }
             );
 
-            return expect(withdrawHandler.withdrawAllSingle(false, 0, toBN(99).mul(daiBaseNum), { from: investor1 })).to.be.rejectedWith('exceeds utilisation limit');
+            return expect(withdrawHandler.withdrawAllSingle(false, 0, toBN(99).mul(daiBaseNum), { from: investor1 })).to.be.rejected;
         })
 
         it('ok normal', async () => {
@@ -784,7 +745,7 @@ contract('WithdrawHandler Test', function (accounts) {
 
             await controller.setBigFishThreshold(1, 0);
 
-            return expect(withdrawHandler.withdrawAllBalanced(false, [0, 0, 0], { from: investor1 })).to.be.rejectedWith('exceeds utilisation limit');
+            return expect(withdrawHandler.withdrawAllBalanced(false, [0, 0, 0], { from: investor1 })).to.be.rejected;
         })
 
         it('ok normal', async () => {
@@ -818,7 +779,6 @@ contract('WithdrawHandler Test', function (accounts) {
             lp = await mockBuoy.usdToLp(usd);
             const lpWithoutFee = lp.sub(lp.mul(toBN('50')).div(toBN('10000')));
             const tokens = await calcWithdrawTokens(lpWithoutFee);
-
 
             await withdrawHandler.withdrawAllBalanced(false, tokens, { from: investor2 });
 

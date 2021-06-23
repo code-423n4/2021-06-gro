@@ -5,17 +5,13 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
-import {FixedStablecoins, FixedGTokens, FixedVaults} from "./common/FixedContracts.sol";
+import {FixedStablecoins, FixedVaults} from "./common/FixedContracts.sol";
 import "./common/Controllable.sol";
-import "./common/Whitelist.sol";
 
 import "./interfaces/IBuoy.sol";
-import "./interfaces/IDepositHandler.sol";
 import "./interfaces/IEmergencyHandler.sol";
 import "./interfaces/IInsurance.sol";
 import "./interfaces/ILifeGuard.sol";
-import "./interfaces/IPnL.sol";
-import "./interfaces/IToken.sol";
 import "./interfaces/IVault.sol";
 import "./interfaces/IWithdrawHandler.sol";
 
@@ -30,25 +26,22 @@ import "./interfaces/IWithdrawHandler.sol";
 ///         3) whale - the largest withdrawal - Withdraws from all stablecoin vaults in target deltas,
 ///            calculated as the difference between target allocations and vaults exposure (insurance). Uses
 ///            Curve pool to exchange withdrawns assets to desired assets.
-contract WithdrawHandler is Controllable, FixedStablecoins, FixedGTokens, FixedVaults, Whitelist, IWithdrawHandler {
-    // Pwrd (true) and gvt (false) mapped to respective withdrawal fee
-    mapping(bool => uint256) public override withdrawalFee;
-    // Lower bound for how many gvt can be burned before getting to close to the utilisation ratio
-    uint256 public override utilisationRatioLimitGvt;
-    IEmergencyHandler public immutable EMH;
-
+contract WithdrawHandler is Controllable, FixedStablecoins, FixedVaults, IWithdrawHandler {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
-    IController ctrl;
-    ILifeGuard lg;
-    IBuoy buoy;
-    IInsurance insurance;
-    IPnL pnl;
+    IController public ctrl;
+    ILifeGuard public lg;
+    IBuoy public buoy;
+    IInsurance public insurance;
+    IEmergencyHandler public emergencyHandler;
 
-    event LogNewWithdrawalFee(address user, bool pwrd, uint256 newFee);
-    event LogNewUtilLimit(bool indexed pwrd, uint256 limit);
-    event LogNewEmergencyHandler(address EMH);
-    event LogNewDependencies(address controller, address lifeguard, address buoy, address insurance);
+    event LogNewDependencies(
+        address controller,
+        address lifeguard,
+        address buoy,
+        address insurance,
+        address emergencyHandler
+    );
     event LogNewWithdrawal(
         address indexed user,
         address indexed referral,
@@ -73,15 +66,10 @@ contract WithdrawHandler is Controllable, FixedStablecoins, FixedGTokens, FixedV
     }
 
     constructor(
-        address pwrd,
-        address gvt,
-        address emh,
         address[N_COINS] memory _vaults,
         address[N_COINS] memory _tokens,
         uint256[N_COINS] memory _decimals
-    ) public FixedStablecoins(_tokens, _decimals) FixedGTokens(pwrd, gvt) FixedVaults(_vaults) {
-        EMH = IEmergencyHandler(emh);
-    }
+    ) public FixedStablecoins(_tokens, _decimals) FixedVaults(_vaults) {}
 
     /// @notice Update protocol dependencies
     function setDependencies() external onlyOwner {
@@ -89,23 +77,14 @@ contract WithdrawHandler is Controllable, FixedStablecoins, FixedGTokens, FixedV
         lg = ILifeGuard(ctrl.lifeGuard());
         buoy = IBuoy(lg.getBuoy());
         insurance = IInsurance(ctrl.insurance());
-        pnl = IPnL(ctrl.pnl());
-        emit LogNewDependencies(address(ctrl), address(lg), address(buoy), address(insurance));
-    }
-
-    /// @notice Set withdrawal fee for token
-    /// @param pwrd Pwrd or gvt (pwrd/gvt)
-    /// @param newFee New token fee
-    function setWithdrawalFee(bool pwrd, uint256 newFee) external onlyOwner {
-        withdrawalFee[pwrd] = newFee;
-        emit LogNewWithdrawalFee(msg.sender, pwrd, newFee);
-    }
-
-    /// @notice Set the lower bound for when to stop accepting gvt withdrawals
-    /// @param _utilisationRatioLimitGvt Lower limit for pwrd (%BP)
-    function setUtilisationRatioLimitGvt(uint256 _utilisationRatioLimitGvt) external onlyOwner {
-        utilisationRatioLimitGvt = _utilisationRatioLimitGvt;
-        emit LogNewUtilLimit(false, _utilisationRatioLimitGvt);
+        emergencyHandler = IEmergencyHandler(ctrl.emergencyHandler());
+        emit LogNewDependencies(
+            address(ctrl),
+            address(lg),
+            address(buoy),
+            address(insurance),
+            address(emergencyHandler)
+        );
     }
 
     /// @notice Withdrawing by LP tokens will attempt to do a balanced
@@ -122,6 +101,7 @@ contract WithdrawHandler is Controllable, FixedStablecoins, FixedGTokens, FixedV
         uint256[N_COINS] calldata minAmounts
     ) external override {
         require(!ctrl.emergencyState(), "withdrawByLPToken: emergencyState");
+        require(lpAmount > 0, "!minAmount");
         WithdrawParameter memory parameters = WithdrawParameter(
             msg.sender,
             pwrd,
@@ -146,9 +126,10 @@ contract WithdrawHandler is Controllable, FixedStablecoins, FixedGTokens, FixedV
         uint256 minAmount
     ) external override {
         if (ctrl.emergencyState()) {
-            EMH.emergencyWithdrawal(msg.sender, pwrd, lpAmount, minAmount);
+            emergencyHandler.emergencyWithdrawal(msg.sender, pwrd, lpAmount, minAmount);
         } else {
             require(index < N_COINS, "!withdrawByStablecoin: invalid index");
+            require(lpAmount > 0, "!minAmount");
             uint256[N_COINS] memory minAmounts;
             minAmounts[index] = minAmount;
             WithdrawParameter memory parameters = WithdrawParameter(
@@ -174,7 +155,7 @@ contract WithdrawHandler is Controllable, FixedStablecoins, FixedGTokens, FixedV
         uint256 minAmount
     ) external override {
         if (ctrl.emergencyState()) {
-            EMH.emergencyWithdrawAll(msg.sender, pwrd, minAmount);
+            emergencyHandler.emergencyWithdrawAll(msg.sender, pwrd, minAmount);
         } else {
             _withdrawAllSingleFromAccount(msg.sender, pwrd, index, minAmount);
         }
@@ -201,8 +182,8 @@ contract WithdrawHandler is Controllable, FixedStablecoins, FixedGTokens, FixedV
         }
     }
 
-    function validHandler(address handler) external view override returns (bool) {
-        return handler == address(this) || handler == address(EMH);
+    function withdrawalFee(bool pwrd) public view returns (uint256) {
+        return _controller().withdrawalFee(pwrd);
     }
 
     /// @notice Prepare for a single sided withdraw all action
@@ -230,29 +211,29 @@ contract WithdrawHandler is Controllable, FixedStablecoins, FixedGTokens, FixedV
         ctrl.eoaOnly(msg.sender);
         require(buoy.safetyCheck(), "!safetyCheck");
 
-        IToken gt = gTokens(parameters.pwrd);
         uint256 deductUsd;
         uint256 returnUsd;
-        uint256 lpAmount;
         uint256 lpAmountFee;
         uint256[N_COINS] memory tokenAmounts;
         // If it's a "withdraw all" action
         uint256 virtualPrice = buoy.getVirtualPrice();
         if (parameters.all) {
-            (deductUsd, returnUsd) = calculateWithdrawalAmountForAll(parameters.pwrd, parameters.account);
+            deductUsd = ctrl.getUserAssets(parameters.pwrd, parameters.account);
+            returnUsd = deductUsd.sub(deductUsd.mul(withdrawalFee(parameters.pwrd)).div(PERCENTAGE_DECIMAL_FACTOR));
             lpAmountFee = returnUsd.mul(DEFAULT_DECIMALS_FACTOR).div(virtualPrice);
             // If it's a normal withdrawal
         } else {
-            lpAmount = parameters.lpAmount;
-            uint256 fee = lpAmount.mul(withdrawalFee[parameters.pwrd]).div(PERCENTAGE_DECIMAL_FACTOR);
+            uint256 userAssets = ctrl.getUserAssets(parameters.pwrd, parameters.account);
+            uint256 lpAmount = parameters.lpAmount;
+            uint256 fee = lpAmount.mul(withdrawalFee(parameters.pwrd)).div(PERCENTAGE_DECIMAL_FACTOR);
             lpAmountFee = lpAmount.sub(fee);
             returnUsd = lpAmountFee.mul(virtualPrice).div(DEFAULT_DECIMALS_FACTOR);
             deductUsd = lpAmount.mul(virtualPrice).div(DEFAULT_DECIMALS_FACTOR);
-            require(deductUsd <= gt.getAssets(parameters.account), "!withdraw: not enough balance");
+            require(deductUsd <= userAssets, "!withdraw: not enough balance");
         }
         uint256 hodlerBonus = deductUsd.sub(returnUsd);
 
-        bool whale = ctrl.isBigFish(returnUsd);
+        bool whale = ctrl.isValidBigFish(parameters.pwrd, false, returnUsd);
 
         // If it's a balanced withdrawal
         if (parameters.balanced) {
@@ -276,23 +257,11 @@ contract WithdrawHandler is Controllable, FixedStablecoins, FixedGTokens, FixedV
             );
         }
 
-        // Check if new token amount breaks utilisation ratio
-        if (!parameters.pwrd) {
-            require(validGTokenDecrease(deductUsd), "exceeds utilisation limit");
-        }
-
-        if (!parameters.all) {
-            gt.burn(parameters.account, gt.factor(), deductUsd);
-        } else {
-            gt.burnAll(parameters.account);
-        }
-        // Update underlying assets held in pwrd/gvt
-        pnl.decreaseGTokenLastAmount(address(gt), deductUsd);
-        ctrl.distributeHodlerBonus(hodlerBonus);
+        ctrl.burnGToken(parameters.pwrd, parameters.all, parameters.account, deductUsd, hodlerBonus);
 
         emit LogNewWithdrawal(
             parameters.account,
-            IDepositHandler(ctrl.depositHandler()).referral(parameters.account),
+            ctrl.referrals(parameters.account),
             parameters.pwrd,
             parameters.balanced,
             parameters.all,
@@ -323,13 +292,7 @@ contract WithdrawHandler is Controllable, FixedStablecoins, FixedGTokens, FixedV
         dollarAmount = withdrawUsd;
         // Is the withdrawal large...
         if (whale) {
-            (dollarAmount, tokenAmount) = _prepareForWithdrawalSingle(
-                account,
-                pwrd,
-                index,
-                minAmount,
-                withdrawUsd
-            );
+            (dollarAmount, tokenAmount) = _prepareForWithdrawalSingle(account, pwrd, index, minAmount, withdrawUsd);
         } else {
             // ... or small
             IVault adapter = IVault(getVault(index));
@@ -362,11 +325,13 @@ contract WithdrawHandler is Controllable, FixedStablecoins, FixedGTokens, FixedV
         address[N_COINS] memory _vaults = vaults();
         for (uint256 i; i < coins; i++) {
             uint256 withdraw = lpAmount.mul(delta[i]).div(PERCENTAGE_DECIMAL_FACTOR);
-            if (withdraw > 0) tokenAmounts[i] = buoy.singleStableFromLp(withdraw, int128(i));
-            require(tokenAmounts[i] >= minAmounts[i], "!withdrawBalanced: !minAmount");
-            IVault adapter = IVault(_vaults[i]);
-            require(tokenAmounts[i] <= adapter.totalAssets(), "_withdrawBalanced: !adapterBalance");
-            adapter.withdrawByStrategyOrder(tokenAmounts[i], account, pwrd);
+            if (withdraw > 0) {
+                tokenAmounts[i] = buoy.singleStableFromLp(withdraw, int128(i));
+                require(tokenAmounts[i] >= minAmounts[i], "!withdrawBalanced: !minAmount");
+                IVault adapter = IVault(_vaults[i]);
+                require(tokenAmounts[i] <= adapter.totalAssets(), "_withdrawBalanced: !adapterBalance");
+                adapter.withdrawByStrategyOrder(tokenAmounts[i], account, pwrd);
+            }
         }
         dollarAmount = buoy.stableToUsd(tokenAmounts, false);
     }
@@ -386,7 +351,6 @@ contract WithdrawHandler is Controllable, FixedStablecoins, FixedGTokens, FixedV
         uint256 minAmount,
         uint256 withdrawUsd
     ) private returns (uint256 dollarAmount, uint256 amount) {
-        // PnL executes during the rebalance
         bool curve = insurance.rebalanceForWithdraw(withdrawUsd, pwrd);
         if (curve) {
             lg.depositStable(false);
@@ -395,27 +359,5 @@ contract WithdrawHandler is Controllable, FixedStablecoins, FixedGTokens, FixedV
             (dollarAmount, amount) = lg.withdrawSingleByExchange(index, minAmount, account);
         }
         require(minAmount <= amount, "!prepareForWithdrawalSingle: !minAmount");
-    }
-
-    /// @notice Check if it's OK to burn the specified amount of tokens, this affects
-    ///     gvt, as they have a lower bound set by the amount of pwrds
-    /// @param amount Amount of token to burn
-    function validGTokenDecrease(uint256 amount) private view returns (bool) {
-        return
-            gTokens(false).totalAssets().sub(amount).mul(utilisationRatioLimitGvt).div(PERCENTAGE_DECIMAL_FACTOR) >=
-            gTokens(true).totalAssets();
-    }
-
-    /// @notice Calcualte withdrawal value when withdrawing all
-    /// @param pwrd Pwrd or gvt (pwrd/gvt)
-    /// @param account User account
-    function calculateWithdrawalAmountForAll(bool pwrd, address account)
-        private
-        view
-        returns (uint256 deductUsd, uint256 returnUsd)
-    {
-        IToken gt = gTokens(pwrd);
-        deductUsd = gt.getAssets(account);
-        returnUsd = deductUsd.sub(deductUsd.mul(withdrawalFee[pwrd]).div(PERCENTAGE_DECIMAL_FACTOR));
     }
 }

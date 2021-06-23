@@ -61,10 +61,6 @@ interface ICurveMetaPool {
 
     function calc_token_amount(uint256[2] calldata inAmounts, bool deposit) external view returns (uint256);
 
-    function balances(int128 i) external view returns (uint256);
-}
-
-interface ICurveMetaDeposit {
     function exchange(
         int128 i,
         int128 j,
@@ -73,10 +69,6 @@ interface ICurveMetaDeposit {
     ) external;
 
     function add_liquidity(uint256[2] calldata uamounts, uint256 min_mint_amount) external;
-
-    function remove_liquidity(uint256 amount, uint256[2] calldata min_uamounts) external;
-
-    function remove_liquidity_imbalance(uint256[2] calldata amounts, uint256 max_burn_amount) external;
 
     function remove_liquidity_one_coin(
         uint256 _token_amount,

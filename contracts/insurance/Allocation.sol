@@ -30,7 +30,7 @@ import "../interfaces/IBuoy.sol";
 ///         - CurveXpool:
 ///             - Curve3Pool
 ///             - CurveMetaPool
-///             - Yearn 
+///             - Yearn
 contract Allocation is Constants, Controllable, Whitelist, IAllocation {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;

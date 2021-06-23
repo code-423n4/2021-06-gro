@@ -126,36 +126,36 @@ contract('Controller Test', function (accounts) {
         });
     });
 
-    describe('isBigFish', function () {
+    describe('isValidBigFish', function () {
         it('return false when < bigFishAbsoluteThreshold', async () => {
             await controller.setBigFishThreshold(100, toBN(1000).mul(baseNum));
-            return expect(controller.isBigFish(toBN(900).mul(baseNum))).to.eventually.equal(false);
+            return expect(controller.isValidBigFish(false, true, toBN(900).mul(baseNum))).to.eventually.equal(false);
         })
 
         it('return true when > assets', async () => {
             await controller.setBigFishThreshold(100, toBN(1000).mul(baseNum));
             await mockPnl.setLastGvtAssets(toBN(2000).mul(baseNum));
-            return expect(controller.isBigFish(toBN(2010).mul(baseNum))).to.eventually.equal(true);
+            return expect(controller.isValidBigFish(false, true, toBN(2010).mul(baseNum))).to.eventually.equal(true);
         })
 
         it('return true when > bigFishThreshold', async () => {
             await controller.setBigFishThreshold(6000, toBN(1000).mul(baseNum));
             await mockPnl.setLastGvtAssets(toBN(2000).mul(baseNum));
-            return expect(controller.isBigFish(toBN(1210).mul(baseNum))).to.eventually.equal(true);
+            return expect(controller.isValidBigFish(false, true, toBN(1210).mul(baseNum))).to.eventually.equal(true);
         })
 
         it('return true when < bigFishThreshold', async () => {
             await controller.setBigFishThreshold(8000, toBN(1000).mul(baseNum));
             await mockPnl.setLastGvtAssets(toBN(2000).mul(baseNum));
             await mockPnl.setLastPwrdAssets(toBN(1600).mul(baseNum));
-            return expect(controller.isBigFish(toBN(1270).mul(baseNum))).to.eventually.equal(false);
+            return expect(controller.isValidBigFish(false, true, toBN(1270).mul(baseNum))).to.eventually.equal(false);
         })
 
         it('return true when > bigFishThreshold', async () => {
             await controller.setBigFishThreshold(8000, toBN(1000).mul(baseNum));
             await mockPnl.setLastGvtAssets(toBN(2000).mul(baseNum));
             await mockPnl.setLastPwrdAssets(toBN(1600).mul(baseNum));
-            return expect(controller.isBigFish(toBN(2900).mul(baseNum))).to.eventually.equal(true);
+            return expect(controller.isValidBigFish(false, true, toBN(2900).mul(baseNum))).to.eventually.equal(true);
         })
     });
 })

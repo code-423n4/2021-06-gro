@@ -115,13 +115,12 @@ contract('lifeguard test', function (accounts) {
             [daiEthAgg.address, usdcEthAgg.address, usdtEthAgg.address]
         );
 
-		await buoy.addToWhitelist(governance, { from: governance });
 		await buoy.setBasisPointsLmit('1000');
 
 		lifeGuard = await LifeGuard.new(curve3Pool.address, mockLPT.address, buoy.address, tokens, decimals);
 		await lifeGuard.setController(mockController.address, { from: governance });
+		await lifeGuard.setDependencies({ from: governance });
 		await lifeGuard.addToWhitelist(governance, { from: governance });
-		await lifeGuard.addToWhitelist(mockController.address, { from: governance });
 		await mockController.addPool(lifeGuard.address, tokens);
 		await mockController.setDelta(['3000', '3000', '4000']);
 		await mockController.setUnderlyingTokens([mockDAI.address, mockUSDC.address, mockUSDT.address]);
@@ -503,7 +502,7 @@ contract('lifeguard test', function (accounts) {
 			// return expect(await mockLPT.balanceOf(lifeGuard.address))
 			//     .to.eventually.be.a.bignumber.equal(toBN(0))
 
-			await lifeGuard.depositStable(true, { from: governance });
+			await mockController.depositStablePool(true, { from: governance });
 
 			await expect(lifeGuard.assets(0)).to.eventually.be.a.bignumber.most(toBN(0).mul(daiBaseNum));
 			await expect(lifeGuard.assets(1)).to.eventually.be.a.bignumber.most(toBN(0).mul(usdcBaseNum));
@@ -543,8 +542,8 @@ contract('lifeguard test', function (accounts) {
 			return expect(trigger).to.be.false;
 		});
 
-		it('Should be possible to approve withdrawers', async function () {
-			return expect(lifeGuard.approveWithdrawer()).to.eventually.be.fulfilled;
+		it('Should be possible to set dependencies', async function () {
+			return expect(lifeGuard.setDependencies()).to.eventually.be.fulfilled;
 		});
 
 		it('Should be possible to trigger the health check on and off', async function () {
@@ -563,7 +562,7 @@ contract('lifeguard test', function (accounts) {
 			await expect(lifeGuard.investToCurveVault()).to.be.fulfilled;
 			const assetsPost = await mockLPT.balanceOf(mockCurveVault.address);
 			const preDai = await mockDAI.balanceOf(mockDAIVault.address);
-			await expect(lifeGuard.distributeCurveVault(assetsPost, [5000, 2500, 2500])).to.be.fulfilled;
+			await expect(mockController.distributeCurveAssets(assetsPost, [5000, 2500, 2500])).to.be.fulfilled;
 			return expect(
 				mockDAI.balanceOf(mockDAIVault.address)
 			).to.eventually.be.a.bignumber.greaterThan(new BN(preDai));
@@ -605,8 +604,8 @@ contract('lifeguard test', function (accounts) {
 			await mockDAI.transfer(lifeGuard.address, investAmount[0], { from: user });
 			await mockUSDC.transfer(lifeGuard.address, investAmount[1], { from: user });
 			await mockUSDT.transfer(lifeGuard.address, investAmount[2], { from: user });
-			await lifeGuard.deposit({ from: governance });
-			const trx = await expect(lifeGuard.invest(0, [4000, 3000, 3000])).to.eventually.be.fulfilled;
+			await mockController.depositPool({ from: governance });
+			const trx = await expect(mockController.investPool(0, [4000, 3000, 3000])).to.eventually.be.fulfilled;
 			const tx = await web3.eth.getTransactionReceipt(trx.tx);
 			const invest = await decodeLogs(tx.logs, LifeGuard, lifeGuard.address, 'LogNewInvest');
 			await expect(invest[0].args[0]).to.be.a.bignumber.closeTo(
@@ -621,7 +620,7 @@ contract('lifeguard test', function (accounts) {
 
 		it('Should be possible to deposit for rebalance', async function () {
 			const baseNum = new BN(10).pow(await mockDAI.decimals());
-			const trx = await lifeGuard.depositStable(true);
+			const trx = await mockController.depositStablePool(true);
 			const tx = await web3.eth.getTransactionReceipt(trx.tx);
 			const deposit = await decodeLogs(
 				tx.logs,
@@ -647,13 +646,10 @@ contract('lifeguard test', function (accounts) {
 				toBN(0),
 			];
 			await mockDAI.transfer(lifeGuard.address, investAmount[0], { from: user });
-			await lifeGuard.deposit({ from: governance });
-			let trx = await expect(lifeGuard.invest(0, [2000, 4000, 4000])).to.eventually.be.fulfilled;
+			await mockController.depositPool({ from: governance });
+			let trx = await expect(mockController.investPool(0, [2000, 4000, 4000])).to.eventually.be.fulfilled;
 			let tx = await web3.eth.getTransactionReceipt(trx.tx);
 			let invest = await decodeLogs(tx.logs, LifeGuard, lifeGuard.address, 'LogNewInvest');
-            // console.log(invest[0].args[0])
-            // console.log(invest[0].args[3])
-            // console.log(JSON.stringify(invest))
 
             daiAmount = new BN('504873231441236551059274931');
             await mockDAI.mint(accounts[0], daiAmount);
@@ -666,18 +662,13 @@ contract('lifeguard test', function (accounts) {
             });
 
 			await mockDAI.transfer(lifeGuard.address, investAmount[0], { from: user });
-			await lifeGuard.deposit({ from: governance });
+			await mockController.depositPool({ from: governance });
             const finDaiUsdc = await curve3Pool.get_dy(0, 1, '1000000000000000000')
             const finDaiUsdt = await curve3Pool.get_dy(0, 2, '1000000000000000000')
 
-			trx = await expect(lifeGuard.invest(0, [2000, 4000, 4000])).to.eventually.be.fulfilled;
+			trx = await expect(mockController.investPool(0, [2000, 4000, 4000])).to.eventually.be.fulfilled;
 			tx = await web3.eth.getTransactionReceipt(trx.tx);
 			invest = await decodeLogs(tx.logs, LifeGuard, lifeGuard.address, 'LogNewInvest');
-            // console.log(invest[0].args[0])
-            // console.log(invest[0].args[3])
-            // console.log(JSON.stringify(invest))
-            // console.log(origDaiUsdc.toString(), finDaiUsdc.toString())
-            // console.log(origDaiUsdt.toString(), finDaiUsdt.toString())
 		});
     })
 });

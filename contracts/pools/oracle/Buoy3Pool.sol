@@ -8,7 +8,8 @@ import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import {FixedStablecoins} from "contracts/common/FixedContracts.sol";
 import {ICurve3Pool} from "contracts/interfaces/ICurve.sol";
 
-import "contracts/common/Whitelist.sol";
+import "contracts/common/Controllable.sol";
+
 import "contracts/interfaces/IBuoy.sol";
 import "contracts/interfaces/IChainPrice.sol";
 import "contracts/interfaces/IChainlinkAggregator.sol";
@@ -21,7 +22,7 @@ import "contracts/interfaces/IERC20Detailed.sol";
 ///         The Buoy checks previously recorded (cached) curve coin dy, which it compares against current curve dy,
 ///         blocking any interaction that is outside a certain tolerance (BASIS_POINTS). When updting the cached
 ///         value, the buoy uses chainlink to ensure that curves prices arent off peg.
-contract Buoy3Pool is Whitelist, FixedStablecoins, IBuoy, IChainPrice {
+contract Buoy3Pool is FixedStablecoins, Controllable, IBuoy, IChainPrice {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -87,10 +88,7 @@ contract Buoy3Pool is Whitelist, FixedStablecoins, IBuoy, IChainPrice {
         for (uint256 i = 1; i < N_COINS; i++) {
             uint256 _ratio = curvePool.get_dy(int128(0), int128(i), getDecimal(0));
             _ratio = abs(int256(_ratio - lastRatio[i]));
-            if (
-                _ratio.mul(PERCENTAGE_DECIMAL_FACTOR).div(CURVE_RATIO_DECIMALS_FACTOR) >
-                BASIS_POINTS
-            ) {
+            if (_ratio.mul(PERCENTAGE_DECIMAL_FACTOR).div(CURVE_RATIO_DECIMALS_FACTOR) > BASIS_POINTS) {
                 return false;
             }
         }
@@ -99,66 +97,43 @@ contract Buoy3Pool is Whitelist, FixedStablecoins, IBuoy, IChainPrice {
 
     /// @notice Updated cached curve value with a custom tolerance towards chainlink
     /// @param tolerance How much difference between curve and chainlink can be tolerated
-    function updateRatiosWithTolerance(uint256 tolerance) external onlyOwner returns (bool) {
+    function updateRatiosWithTolerance(uint256 tolerance) external override returns (bool) {
+        require(msg.sender == controller || msg.sender == owner(), "updateRatiosWithTolerance: !authorized");
         return _updateRatios(tolerance);
     }
 
     /// @notice Updated cached curve values
-    function updateRatios() external override onlyWhitelist returns (bool) {
+    function updateRatios() external override returns (bool) {
+        require(msg.sender == controller || msg.sender == owner(), "updateRatios: !authorized");
         return _updateRatios(BASIS_POINTS);
     }
 
     /// @notice Get USD value for a specific input amount of tokens, slippage included
-    function stableToUsd(uint256[N_COINS] calldata inAmounts, bool deposit)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function stableToUsd(uint256[N_COINS] calldata inAmounts, bool deposit) external view override returns (uint256) {
         return _stableToUsd(inAmounts, deposit);
     }
 
     /// @notice Get estimate USD price of a stablecoin amount
     /// @param inAmount Token amount
     /// @param i Index of token
-    function singleStableToUsd(uint256 inAmount, uint256 i)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function singleStableToUsd(uint256 inAmount, uint256 i) external view override returns (uint256) {
         uint256[N_COINS] memory inAmounts;
         inAmounts[i] = inAmount;
         return _stableToUsd(inAmounts, true);
     }
 
     /// @notice Get LP token value of input amount of tokens
-    function stableToLp(uint256[N_COINS] calldata tokenAmounts, bool deposit)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function stableToLp(uint256[N_COINS] calldata tokenAmounts, bool deposit) external view override returns (uint256) {
         return _stableToLp(tokenAmounts, deposit);
     }
 
     /// @notice Get LP token value of input amount of single token
-    function singleStableFromUsd(uint256 inAmount, int128 i)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function singleStableFromUsd(uint256 inAmount, int128 i) external view override returns (uint256) {
         return _singleStableFromLp(_usdToLp(inAmount), i);
     }
 
     /// @notice Get LP token value of input amount of single token
-    function singleStableFromLp(uint256 inAmount, int128 i)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function singleStableFromLp(uint256 inAmount, int128 i) external view override returns (uint256) {
         return _singleStableFromLp(inAmount, i);
     }
 
@@ -182,9 +157,7 @@ contract Buoy3Pool is Whitelist, FixedStablecoins, IBuoy, IChainPrice {
     {
         uint256[N_COINS] memory _balances;
         for (uint256 i = 0; i < N_COINS; i++) {
-            _balances[i] = (IERC20(getToken(i)).balanceOf(address(curvePool)).mul(inAmount)).div(
-                totalBalance
-            );
+            _balances[i] = (IERC20(getToken(i)).balanceOf(address(curvePool)).mul(inAmount)).div(totalBalance);
         }
         balances = _balances;
     }
@@ -198,11 +171,7 @@ contract Buoy3Pool is Whitelist, FixedStablecoins, IBuoy, IChainPrice {
         return inAmount.mul(curvePool.get_virtual_price()).div(DEFAULT_DECIMALS_FACTOR);
     }
 
-    function _stableToUsd(uint256[N_COINS] memory tokenAmounts, bool deposit)
-        internal
-        view
-        returns (uint256)
-    {
+    function _stableToUsd(uint256[N_COINS] memory tokenAmounts, bool deposit) internal view returns (uint256) {
         require(tokenAmounts.length == N_COINS, "deposit: !length");
         uint256[N_COINS] memory _tokenAmounts;
         for (uint256 i = 0; i < N_COINS; i++) {
@@ -212,11 +181,7 @@ contract Buoy3Pool is Whitelist, FixedStablecoins, IBuoy, IChainPrice {
         return _lpToUsd(lpAmount);
     }
 
-    function _stableToLp(uint256[N_COINS] memory tokenAmounts, bool deposit)
-        internal
-        view
-        returns (uint256)
-    {
+    function _stableToLp(uint256[N_COINS] memory tokenAmounts, bool deposit) internal view returns (uint256) {
         require(tokenAmounts.length == N_COINS, "deposit: !length");
         uint256[N_COINS] memory _tokenAmounts;
         for (uint256 i = 0; i < N_COINS; i++) {
@@ -280,9 +245,7 @@ contract Buoy3Pool is Whitelist, FixedStablecoins, IBuoy, IChainPrice {
         for (uint256 i = 1; i < N_COINS; i++) {
             uint256 _ratio = curvePool.get_dy(int128(0), int128(i), getDecimal(0));
             uint256 check = abs(int256(_ratio) - int256(chainRatios[i].div(CHAIN_FACTOR)));
-            if (
-                check.mul(PERCENTAGE_DECIMAL_FACTOR).div(CURVE_RATIO_DECIMALS_FACTOR) > tolerance
-            ) {
+            if (check.mul(PERCENTAGE_DECIMAL_FACTOR).div(CURVE_RATIO_DECIMALS_FACTOR) > tolerance) {
                 return false;
             } else {
                 newRatios[i] = _ratio;

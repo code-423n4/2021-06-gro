@@ -25,13 +25,8 @@ contract MockAggregator is IChainlinkAggregator {
         roundId_ = roundId_ + 1;
     }
 
-    function latestRound()
-        external
-        view
-        override
-        returns (uint256)
-    {
-        return uint256(roundId_);   
+    function latestRound() external view override returns (uint256) {
+        return uint256(roundId_);
     }
 
     function latestAnswer() external view override returns (int256) {

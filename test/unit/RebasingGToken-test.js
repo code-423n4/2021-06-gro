@@ -69,16 +69,16 @@ contract('RebasingGToken Test', function (accounts) {
 
             it('Should ok when single investor', async function () {
                 const amount = new BN(100).mul(baseNum);
-                await mockController.mintGToken(pwrd.address, amount);
+                await mockController.mintGTokens(pwrd.address, amount);
 
                 return expect(pwrd.totalSupply()).to.eventually.be.a.bignumber.equal(amount);
             });
 
             it('Should ok when multiply investors', async function () {
                 const amount1 = new BN(100).mul(baseNum);
-                await mockController.mintGToken(pwrd.address, amount1, { from: investor1 });
+                await mockController.mintGTokens(pwrd.address, amount1, { from: investor1 });
                 const amount2 = new BN(200).mul(baseNum);
-                await mockController.mintGToken(pwrd.address, amount2, { from: investor2 });
+                await mockController.mintGTokens(pwrd.address, amount2, { from: investor2 });
 
                 await expect(pwrd.totalSupply()).to.eventually.be.a.bignumber.equal(
                     amount1.add(amount2));
@@ -118,13 +118,13 @@ contract('RebasingGToken Test', function (accounts) {
                 initAmount1 = new BN(1000).mul(baseNum);
                 initAmount2 = new BN(1000).mul(baseNum);
 
-                await mockController.mintGToken(pwrd.address, initAmount1, { from: investor1 });
-                await mockController.mintGToken(pwrd.address, initAmount2, { from: investor2 });
+                await mockController.mintGTokens(pwrd.address, initAmount1, { from: investor1 });
+                await mockController.mintGTokens(pwrd.address, initAmount2, { from: investor2 });
             });
 
             it('Should ok when single investor', async function () {
                 const amount = new BN(100).mul(baseNum);
-                await mockController.burnGToken(pwrd.address, amount, { from: investor1 });
+                await mockController.burnGTokens(pwrd.address, amount, { from: investor1 });
 
                 return expect(pwrd.totalSupply()).to.eventually.be.a.bignumber.equal(
                     initAmount1.add(initAmount2).sub(amount));
@@ -132,10 +132,10 @@ contract('RebasingGToken Test', function (accounts) {
 
             it('Should ok when multiply investors', async function () {
                 const amount1 = new BN(100).mul(baseNum);
-                await mockController.burnGToken(
+                await mockController.burnGTokens(
                     pwrd.address, amount1, { from: investor1 });
                 const amount2 = new BN(200).mul(baseNum);
-                await mockController.burnGToken(
+                await mockController.burnGTokens(
                     pwrd.address, amount2, { from: investor2 });
 
                 await expect(pwrd.totalSupply()).to.eventually.be.a.bignumber.equal(
@@ -155,7 +155,7 @@ contract('RebasingGToken Test', function (accounts) {
         beforeEach(async function () {
             if (this.currentTest.title === 'Should be BASE value initially') return;
 
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 pwrd.address, new BN(200).mul(baseNum), { from: investor1 });
         });
 
@@ -186,10 +186,10 @@ contract('RebasingGToken Test', function (accounts) {
 
     describe('totalSupply', function () {
         beforeEach(async function () {
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 pwrd.address, new BN(100).mul(baseNum), { from: investor1 });
 
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 pwrd.address, new BN(100).mul(baseNum), { from: investor2 });
         });
 
@@ -213,10 +213,10 @@ contract('RebasingGToken Test', function (accounts) {
 
     describe('balanceOf', function () {
         beforeEach(async function () {
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 pwrd.address, new BN(100).mul(baseNum), { from: investor1 });
 
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 pwrd.address, new BN(200).mul(baseNum), { from: investor2 });
         });
 
@@ -240,10 +240,10 @@ contract('RebasingGToken Test', function (accounts) {
 
     describe('transfer', function () {
         beforeEach(async function () {
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 pwrd.address, new BN(100).mul(baseNum), { from: investor1 });
 
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 pwrd.address, new BN(200).mul(baseNum), { from: investor2 });
         });
 
@@ -286,10 +286,10 @@ contract('RebasingGToken Test', function (accounts) {
 
     describe('transferFrom', function () {
         beforeEach(async function () {
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 pwrd.address, new BN(100).mul(baseNum), { from: investor1 });
 
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 pwrd.address, new BN(200).mul(baseNum), { from: investor2 });
         });
 
@@ -345,7 +345,7 @@ contract('RebasingGToken Test', function (accounts) {
         const BASE = new BN(10).pow(new BN(18));
 
         beforeEach(async function () {
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 pwrd.address, new BN(200).mul(baseNum), { from: investor1 });
             await mockController.setGTokenTotalAssets(new BN(400).mul(baseNum));
         });
@@ -373,10 +373,10 @@ contract('RebasingGToken Test', function (accounts) {
         const BASE = new BN(10).pow(new BN(18));
 
         it('Burn event', async function () {
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 pwrd.address, new BN(400).mul(baseNum), { from: investor1 }
             );
-            const trx = await mockController.burnGToken(
+            const trx = await mockController.burnGTokens(
                 pwrd.address, new BN(200).mul(baseNum), { from: investor1 }
             );
             const tx = await web3.eth.getTransactionReceipt(trx.tx)
@@ -390,7 +390,7 @@ contract('RebasingGToken Test', function (accounts) {
             const burnAmount = new BN(100).mul(baseNum)
             const factor = await pwrd.factor();
             const expectedFinal = initAmount.sub(burnAmount);
-            const trx2 = await mockController.burnGToken(
+            const trx2 = await mockController.burnGTokens(
                 pwrd.address, burnAmount, { from: investor1 }
             );
             const tx2 = await web3.eth.getTransactionReceipt(trx2.tx)
@@ -403,7 +403,7 @@ contract('RebasingGToken Test', function (accounts) {
         });
 
         it('Mint event', async function () {
-            const trx = await mockController.mintGToken(
+            const trx = await mockController.mintGTokens(
                 pwrd.address, new BN(200).mul(baseNum), { from: investor1 }
             );
             const tx = await web3.eth.getTransactionReceipt(trx.tx)
@@ -418,7 +418,7 @@ contract('RebasingGToken Test', function (accounts) {
             const mintAmount = new BN(100).mul(baseNum)
             const factor = await pwrd.factor();
             const expectedFinal = initAmount.add(mintAmount);
-            const trx2 = await mockController.mintGToken(
+            const trx2 = await mockController.mintGTokens(
                 pwrd.address, mintAmount, { from: investor1 }
             );
             const tx2 = await web3.eth.getTransactionReceipt(trx2.tx)
@@ -430,7 +430,7 @@ contract('RebasingGToken Test', function (accounts) {
         });
 
         it('Transfer event', async function () {
-            await mockController.mintGToken(
+            await mockController.mintGTokens(
                 pwrd.address, new BN(200).mul(baseNum), { from: investor1 }
             );
 

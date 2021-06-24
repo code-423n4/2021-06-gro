@@ -88,7 +88,7 @@ The Protocol is divided into 5 separate modules with different areas of concerns
 ### Control flow [Diagrams](https://drive.google.com/file/d/1gCVQJzzSFLgDAXDK0ZwPg2fRA19CglOS/view?usp=sharing)
 The control flow is primarily responsible for stringing the other modules together and user interactions. The controller acts as a hub, providing system level information to other modules. The withdraw and deposit handlers acts as entry points for users withdrawals and deposits respectively.
 	
-#### Controller.sol (245 sloc each)
+#### Controller.sol (330 sloc each)
 Core contract connecting the separate modules, responsible for:
 
  - Connection Gtokens to protocol
@@ -97,29 +97,29 @@ Core contract connecting the separate modules, responsible for:
  - Allowing other contract to interact with PnL and insurance logic.
  - Access control (may block smart contracts)
  
-#### WithdrawHandler.sol (417 sloc each)
+#### WithdrawHandler.sol (260 sloc each)
  - Contract handling user withdrawals, responsible for:
   - Determining withdrawal logic path [single, balanced, size]
   - Transferring assets from protocol to user
 
-#### DepositHandler.sol (261 sloc each)
+#### DepositHandler.sol (132 sloc each)
 Contract handling user Deposits, responsible for:
   - Determining Deposit logic path [small, large]
   - Transferring tokens from user to protocol
 
-#### EmergencyHandler.sol (163 sloc each)
+#### EmergencyHandler.sol (94 sloc each)
 Alternate withdrawal logic, used in case of curve being compromised, or in the case of the failure of a stablecoin.
 
 ### Tokens [Diagrams](https://drive.google.com/file/d/1EVWhZYTtLGddp3SZFT8-ZpvunYClCVEj/view?usp=sharing)
 
-#### GERC20.sol (341 sloc)
+#### GERC20.sol (323 sloc)
 Custom implementation of the ERC20 specifications, built ontop of the OpenZepplin ERC20 implementation:
 -	_burn: Added parameter - burnAmount added to take rebased amount into account, affects the Transfer event
 -	_mint: Added parameter - mintAmount added to take rebased amount into account, affects the Transfer event
 -	_transfer: Added parameter - transferAmount added to take rebased amount into account, affects the Transfer event 
 -	_decreaseApproved: Added function - internal function to allowed override of transferFrom    
 
-#### GToken.sol (71 sloc)
+#### GToken.sol (55 sloc)
 Base contract for gro protocol tokens. The Gtoken implements a factor that is established as the total amount of minted token over the total amount of assets invested in the token. The factor is then used to drive a desired behaviour in the implementing token.
 
 ##### Factor code:
@@ -134,7 +134,7 @@ function factor(uint256 totalAssets) public view override returns (uint256) {
 	return 0;
 	}       
 ```
-#### NonRebasingGToken.sol (99 sloc)
+#### NonRebasingGToken.sol (60 sloc)
 Implementation of the GToken contract, used the gtoken factor to establish a price per share, defined as:
 ```
  function getPricePerShare() public view override returns (uint256) {
@@ -142,7 +142,7 @@ Implementation of the GToken contract, used the gtoken factor to establish a pri
     return f > 0 ? BASE.mul(BASE).div(f) : 0;
  }         
 ```
-#### RebasingGToken.sol (115 sloc)
+#### RebasingGToken.sol (69 sloc)
 Implementation of the GToken contract, used the gtoken factor to establish a balance of, defined as:
 ```
  function totalSupply() public view override returns (uint256) {
@@ -153,12 +153,12 @@ Implementation of the GToken contract, used the gtoken factor to establish a bal
 ### Pricing and Swapping [Diagrams](https://drive.google.com/file/d/1rMx_RK7RsQYLxQXrvtp9skyVgJokN_gV/view?usp=sharing)
 The system should have one base currency to calculate total assets based on multiple stable coins (one stable coin has one corresponding VaultAdapter). US Dollar (USD) is used as the base currency. The pricing and swapping modules responsibility is to get the dollar price for stable coins. Safety is the first requirement of this module.
 
-#### LifeGuard3Pool.sol (382 sloc)
+#### LifeGuard3Pool.sol (308 sloc)
 The lifeguard is responsible for any stable coin swapping the protocol performs. It interacts directly with the curve3pool. Additionally the lifeguard is responsible for:
  - Handling swaps during deposits and investing assets to stable coin vault adapters
  - Preparing stable coins to be invested for 3Crv, and invested  into the 3Crv vault adapter
 
-#### Buoy3Pool.sol (223 sloc)
+#### Buoy3Pool.sol (172 sloc)
 The Buoy acts as the protocol pricing oracle, and is responsible for providing pricing and sanity checking curves prices. The Buoy interacts with both Curve (3pool) and Chainlink.
 	- Provides prices for rest of protocol
 	- Sanity checks Curve prices against historical pricing points
@@ -169,7 +169,7 @@ The insurance module is responsible for the system's overall health. It provides
 
 In addition to the core insurance contract, the PnL contract helps the protocol to distribute profit or losses from underlying vaults between GVT and PWRD according to the gro algorithm, and provide the system utilisation ratio (PWRD count / GVT total value).
 
-#### Insurance.sol (521 sloc)
+#### Insurance.sol (340 sloc)
 The insurance contract is the most important part of the protocol - it controls the system risk and gets profit from external protocols. Its main responsibilities are:
 
 -   Calculate stable coin / protocol risk exposure
@@ -180,13 +180,13 @@ The insurance contract is the most important part of the protocol - it controls 
     
 The insurance contract shouldn't need to be replaced, as any changes to the protocol (e.g. changes in assets, strategies or protocol exposure) should be captured by the allocation and exposure contracts. These act as strategies for the main insurance contract.
 
-#### Exposure.sol (280 sloc)
+#### Exposure.sol (214 sloc)
 Allows the insurance module to calculate current exposure based on the current protocol setup
 
-#### Allocation.sol (319 sloc)
+#### Allocation.sol (186 sloc)
 Determines protocol stable coin stable coin, strategy allocations and thresholds based on the current protocol setup
 
-#### PnL.sol (412 sloc)
+#### PnL.sol (220 sloc)
 The Pnl contract holds logic to deal with system profit and loss -It holds a snapshot of latest tvl split between Gvt and Pwrd, and updates this value as deposits/withdrawal, gains/losses etc occur. The following action can impact the systems TvL: 
 	-	deposits/withdrawal: updates to TvL are handled through the control flow module (on user deposit/withdrawal)
 	-	Yields (Strategy Gains/losses): reported back to the PnL contract during a harvest (realisation of yield)
@@ -204,20 +204,20 @@ Implementation of the vault adapter to interact with a modified version of the y
 ### Common contracts
 Standard abstractions implemented by other contracts in the protocol
 
-#### Whitelist.sol (121 sloc)
+#### Whitelist.sol (21 sloc)
 Access control logic
 		
-#### Controllable.sol (121 sloc)
+#### Controllable.sol (34 sloc)
 Contracts relying on the Controller.sol contract
 		
-#### StructDefinitions.sol (121 sloc)
+#### StructDefinitions.sol (37 sloc)
 Defintions of structs used in the protocol
 	
-#### Constants.sol (121 sloc)
+#### Constants.sol (11 sloc)
 Constant values used accross the protocol:
 	- Decimal constants
 	
-#### FixedContracts.sol (121 sloc)
+#### FixedContracts.sol (81 sloc)
 Immutable and constant variables used accorss the protocol. Divided into:
 	- Fixed GTokens (pwrd, gvt)
 	- Fixed Stablecoins (DAI, USDC, USDT)
@@ -239,40 +239,40 @@ A working instance of gro protocol has been deployed on Kovan. All external cont
  The following mocked contracts are used by the protocol on Kovan:
 | Mocks                         | Address |
 |-------------------------------|------------------------------------------------------|
-| DAI	                        | [DAI, ''], |
-| USDC	                        | [USDC, ''], |
-| USDT	                        | [USDT, ''], |
-| Curve3Pool					| [Curve3Pool, ''], |
-| 3Crv							| [3Crv, ''], |
+| DAI	                        | [DAI, '0xcce117e5d7202E8eDAf6B53b261d05a015076708'], |
+| USDC	                        | [USDC, '0x12C430321215ceEbb4e6ecCe88d33c142e6A9361'], |
+| USDT	                        | [USDT, '0xAEb440dc3F3Be04FF577f9Bd7Cbe31633837F6f1'], |
+| Curve3Pool                    | [Curve3Pool, '0x6d2390f4F263c98122A8c671c44e4De89B2B0698'], |
+| 3Crv                          | [3Crv, '0xE916940d8bABADE39b709997E16f1cFb4198ad55'], |
 |-------------------------------|------------------------------------------------------|
 
 The following external contracts are being used
 | External                         | Address |
 |-------------------------------|------------------------------------------------------|
-| DAI/USD Aggregator (Chainlink)| [DAIUSDAggregator, ''], |
-| USDC/USD Aggregator (Chainlink)| [USDCUSDAggregator, ''], |
-| USDT/USD Aggregator (Chainlink)| [USDTUSDAggregator, ''], |
+| DAI/USD Aggregator (Chainlink)| [DAIUSDAggregator, '0x777A68032a88E5A84678A77Af2CD65A7b3c0775a'], |
+| USDC/USD Aggregator (Chainlink)| [USDCUSDAggregator, '0x9211c6b3BF41A10F78539810Cf5c64e1BB78Ec60'], |
+| USDT/USD Aggregator (Chainlink)| [USDTUSDAggregator, '0x2ca5A90D34cA333661083F89D831f757A9A50148'], |
 |-------------------------------|------------------------------------------------------|
 
 The following contracts make up the core protocol on Kovan.
 | Protocol                         | Address |
 |-------------------------------|------------------------------------------------------|
-| Controller| [Controller, '], |
-| DepositHandler| [DepositHandler, '], |
-| WithdrawHandler| [WithdrawHandler, '], |
-| EmergencyHandler| [EmergencyHandler, '], |
-| NonRebasingGToken| [NonRebasingGToken, '], |
-| RebasingGToken | [RebasingGToken, '], |
-| Insurance| [Insurance, ''], |
-| Exposure| [Exposure, '], |
-| Allocation| [Allocation, ''], |
-| PnL| [PnL, ''], |
-| LifeGuard3Pool| [LifeGuard3Pool, ''], |
-| Buoy3Pool| [Buoy3Pool, ''], |
-| VaultAdaptorYearnV2_032| [VaultAdaptorYearnV2_032, ''], |
-| VaultAdaptorYearnV2_032| [VaultAdaptorYearnV2_032, ''], |
-| VaultAdaptorYearnV2_032| [VaultAdaptorYearnV2_032, ''], |
-
+| Controller| [Controller, '0x9C809a3Ae4017F4f9cF515961EB8b09Fc7bc72D6'], |
+| DepositHandler| [DepositHandler, '0x4AD396529f0b13d41F8a835D0c1ba84fb2AEd0FB'], |
+| WithdrawHandler| [WithdrawHandler, '0x72De5A334b984A0663701275c5ea6D3c14A5a74A'], |
+| EmergencyHandler| [EmergencyHandler, '0x857B9417b4e5844522813c22fc855d7610BCA7d5'], |
+| NonRebasingGToken| [NonRebasingGToken, '0x5Fd465CCedF3980896E52ad0513a657B3E90974C'], |
+| RebasingGToken | [RebasingGToken, '0x6786568A8BD43a878cA5A22296ef42DD2cF9dEf0'], |
+| Insurance| [Insurance, '0x4D0137D86558Ad456a8Bc2ab35c3CD4f9C1f1001'], |
+| Exposure| [Exposure, '0xA77789742715540E7a9A9f18a0D4075F10A7B448'], |
+| Allocation| [Allocation, '0x05B19eAD7732B5383684397D7671860Cd6e418e5'], |
+| PnL| [PnL, '0x9E3a37876712EF153BEC27cFa9b9D90648f6940F'], |
+| LifeGuard3Pool| [LifeGuard3Pool, '0xB3990791c1790E2c8DB438eE8FEe1461358CEBf8'], |
+| Buoy3Pool| [Buoy3Pool, '0x10F939F2C84fb675E7a1F071984aEC8B39bCAECF'], |
+| DaiVaultAdapter| [VaultAdaptorYearnV2_032, '0x0b9700a4164F5283242eb10DE73cC23714f5074D'], |
+| UsdcVaultAdapter| [VaultAdaptorYearnV2_032, '0x7dB51B13636390bD2F8965a752Ee02654B118846'], |
+| UsdtVaultAdapter| [VaultAdaptorYearnV2_032, '0x2FEA3820860b3a3854701df821A0c12102190FB4'], |
+| 3CrvVaultAdapter| [VaultAdaptorYearnV2_032, '0xDF7C4E769060eFef607cb91CA0d1cfFC6C42D2dd'], |
 
 
 

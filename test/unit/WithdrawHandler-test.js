@@ -1,5 +1,4 @@
 const WithdrawHandler = artifacts.require('WithdrawHandler');
-const EmergencyHandler = artifacts.require('EmergencyHandler');
 const DepositHandler = artifacts.require('DepositHandler');
 const Controller = artifacts.require('Controller');
 const MockGvtTokenToken = artifacts.require('MockGvtToken');
@@ -30,7 +29,7 @@ contract('WithdrawHandler Test', function (accounts) {
     const baseNum = new BN(10).pow(new BN(18));
 
     let controller, mockVault, mockPWRD, mockLifeGuard, mockBuoy, pnl, mockInsurance, withdrawHandler,
-        daiBaseNum, usdcBaseNum, emergencyHandler,
+        daiBaseNum, usdcBaseNum,
         mockDAI, mockUSDC, mockUSDT, mockLPToken,
         mockDAIVault, mockUSDCVault, mockUSDTVault, mockCurveVault;
 
@@ -104,26 +103,17 @@ contract('WithdrawHandler Test', function (accounts) {
         await controller.setUtilisationRatioLimitPwrd(toBN(10000));
         await controller.addToWhitelist(depositHandler.address);
 
-        emergencyHandler = await EmergencyHandler.new(
-            mockPWRD.address,
-            mockVault.address,
-            mockLifeGuard.address,
-            vaults,
-            tokens,
-            decimals
-        );
         withdrawHandler = await WithdrawHandler.new(
             vaults,
             tokens,
             decimals
         );
-        await controller.setWithdrawHandler(withdrawHandler.address, emergencyHandler.address);
+        await controller.setWithdrawHandler(withdrawHandler.address, ZERO);
         await withdrawHandler.setController(controller.address);
         await controller.setUtilisationRatioLimitGvt(toBN(10000));
         await controller.addToWhitelist(withdrawHandler.address);
 
         await controller.setWithdrawalFee(false, 50);
-        await emergencyHandler.setController(controller.address);
 
         await controller.setBigFishThreshold(1000, toBN(1000).mul(baseNum));
 

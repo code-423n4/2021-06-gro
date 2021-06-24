@@ -236,6 +236,8 @@ A full set of unit tests are provided in the repo.
 
 A working instance of gro protocol has been deployed on Kovan. All external contracts, with the exception of chain links aggregators, have been mocked. Strategies and underlying vaults are included in the deployment to aid testing and analysis, but are outside the scope of this contest. Yields are mocked and generated on a regular basis. Bots are triggering Harvests any any other actions that are used to maintain the protocol. Mint functionality is open for all stable coins, and users are welcome to use and play around with the protocol. But if you want to do do an extensive amount of interactions with the protocol, such as large trades which may impact the balance of the Curve pool, we would kindly ask you to do so on a fork.
 
+_Call the faucet() method on the stablecoins to claim 10k coins per address._
+
  The following mocked contracts are used by the protocol on Kovan:
 | Mocks                         | Address |
 |-------------------------------|------------------------------------------------------|
@@ -244,7 +246,7 @@ A working instance of gro protocol has been deployed on Kovan. All external cont
 | USDT	                        | [USDT, '0xAEb440dc3F3Be04FF577f9Bd7Cbe31633837F6f1'], |
 | Curve3Pool                    | [Curve3Pool, '0x6d2390f4F263c98122A8c671c44e4De89B2B0698'], |
 | 3Crv                          | [3Crv, '0xE916940d8bABADE39b709997E16f1cFb4198ad55'], |
-|-------------------------------|------------------------------------------------------|
+
 
 The following external contracts are being used
 | External                         | Address |
@@ -252,7 +254,7 @@ The following external contracts are being used
 | DAI/USD Aggregator (Chainlink)| [DAIUSDAggregator, '0x777A68032a88E5A84678A77Af2CD65A7b3c0775a'], |
 | USDC/USD Aggregator (Chainlink)| [USDCUSDAggregator, '0x9211c6b3BF41A10F78539810Cf5c64e1BB78Ec60'], |
 | USDT/USD Aggregator (Chainlink)| [USDTUSDAggregator, '0x2ca5A90D34cA333661083F89D831f757A9A50148'], |
-|-------------------------------|------------------------------------------------------|
+
 
 The following contracts make up the core protocol on Kovan.
 | Protocol                         | Address |

@@ -212,40 +212,40 @@ _Call the faucet() method on the stablecoins to claim 10k coins per address._
  The following mocked contracts are used by the protocol on Kovan:
 | Mocks                         | Address |
 |-------------------------------|------------------------------------------------------|
-| DAI	                        | [DAI, '0xcce117e5d7202E8eDAf6B53b261d05a015076708'], |
-| USDC	                        | [USDC, '0x12C430321215ceEbb4e6ecCe88d33c142e6A9361'], |
-| USDT	                        | [USDT, '0xAEb440dc3F3Be04FF577f9Bd7Cbe31633837F6f1'], |
-| Curve3Pool                    | [Curve3Pool, '0x6d2390f4F263c98122A8c671c44e4De89B2B0698'], |
-| 3Crv                          | [3Crv, '0xE916940d8bABADE39b709997E16f1cFb4198ad55'], |
+| DAI	                        | [DAI, ''], |
+| USDC	                        | [USDC, ''], |
+| USDT	                        | [USDT, ''], |
+| Curve3Pool                    | [Curve3Pool, ''], |
+| 3Crv                          | [3Crv, ''], |
 
 
 The following external contracts are being used
 | External                         | Address |
 |-------------------------------|------------------------------------------------------|
-| DAI/USD Aggregator (Chainlink)| [DAIUSDAggregator, '0x777A68032a88E5A84678A77Af2CD65A7b3c0775a'], |
-| USDC/USD Aggregator (Chainlink)| [USDCUSDAggregator, '0x9211c6b3BF41A10F78539810Cf5c64e1BB78Ec60'], |
-| USDT/USD Aggregator (Chainlink)| [USDTUSDAggregator, '0x2ca5A90D34cA333661083F89D831f757A9A50148'], |
+| DAI/USD Aggregator (Chainlink)| [DAIUSDAggregator, ''], |
+| USDC/USD Aggregator (Chainlink)| [USDCUSDAggregator, ''], |
+| USDT/USD Aggregator (Chainlink)| [USDTUSDAggregator, ''], |
 
 
 The following contracts make up the core protocol on Kovan.
 | Protocol                         | Address |
 |-------------------------------|------------------------------------------------------|
-| Controller| [Controller, '0x9C809a3Ae4017F4f9cF515961EB8b09Fc7bc72D6'], |
-| DepositHandler| [DepositHandler, '0x4AD396529f0b13d41F8a835D0c1ba84fb2AEd0FB'], |
-| WithdrawHandler| [WithdrawHandler, '0x72De5A334b984A0663701275c5ea6D3c14A5a74A'], |
-| EmergencyHandler| [EmergencyHandler, '0x857B9417b4e5844522813c22fc855d7610BCA7d5'], |
-| NonRebasingGToken| [NonRebasingGToken, '0x5Fd465CCedF3980896E52ad0513a657B3E90974C'], |
-| RebasingGToken | [RebasingGToken, '0x6786568A8BD43a878cA5A22296ef42DD2cF9dEf0'], |
-| Insurance| [Insurance, '0x4D0137D86558Ad456a8Bc2ab35c3CD4f9C1f1001'], |
-| Exposure| [Exposure, '0xA77789742715540E7a9A9f18a0D4075F10A7B448'], |
-| Allocation| [Allocation, '0x05B19eAD7732B5383684397D7671860Cd6e418e5'], |
-| PnL| [PnL, '0x9E3a37876712EF153BEC27cFa9b9D90648f6940F'], |
-| LifeGuard3Pool| [LifeGuard3Pool, '0xB3990791c1790E2c8DB438eE8FEe1461358CEBf8'], |
-| Buoy3Pool| [Buoy3Pool, '0x10F939F2C84fb675E7a1F071984aEC8B39bCAECF'], |
-| DaiVaultAdapter| [VaultAdaptorYearnV2_032, '0x0b9700a4164F5283242eb10DE73cC23714f5074D'], |
-| UsdcVaultAdapter| [VaultAdaptorYearnV2_032, '0x7dB51B13636390bD2F8965a752Ee02654B118846'], |
-| UsdtVaultAdapter| [VaultAdaptorYearnV2_032, '0x2FEA3820860b3a3854701df821A0c12102190FB4'], |
-| 3CrvVaultAdapter| [VaultAdaptorYearnV2_032, '0xDF7C4E769060eFef607cb91CA0d1cfFC6C42D2dd'], |
+| Controller| [Controller, ''], |
+| DepositHandler| [DepositHandler, ''], |
+| WithdrawHandler| [WithdrawHandler, ''], |
+| EmergencyHandler| [EmergencyHandler, ''], |
+| NonRebasingGToken| [NonRebasingGToken, ''], |
+| RebasingGToken | [RebasingGToken, ''], |
+| Insurance| [Insurance, ''], |
+| Exposure| [Exposure, ''], |
+| Allocation| [Allocation, ''], |
+| PnL| [PnL, ''], |
+| LifeGuard3Pool| [LifeGuard3Pool, ''], |
+| Buoy3Pool| [Buoy3Pool, ''], |
+| DaiVaultAdapter| [VaultAdaptorYearnV2_032, ''], |
+| UsdcVaultAdapter| [VaultAdaptorYearnV2_032, ''], |
+| UsdtVaultAdapter| [VaultAdaptorYearnV2_032, ''], |
+| 3CrvVaultAdapter| [VaultAdaptorYearnV2_032, ''], |
 
 
 

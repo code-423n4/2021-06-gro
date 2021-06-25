@@ -205,47 +205,47 @@ A full set of unit tests are provided in the repo.
 
 ## Testnet deployment
 
-A working instance of gro protocol has been deployed on Kovan. All external contracts, with the exception of chain links aggregators, have been mocked. Strategies and underlying vaults are included in the deployment to aid testing and analysis, but are outside the scope of this contest. Yields are mocked and generated on a regular basis. Bots are triggering Harvests any any other actions that are used to maintain the protocol. Mint functionality is open for all stable coins, and users are welcome to use and play around with the protocol. But if you want to do do an extensive amount of interactions with the protocol, such as large trades which may impact the balance of the Curve pool, we would kindly ask you to do so on a fork.
+A working instance of gro protocol has been deployed on Ropsten. All external contracts, with the exception of chain links aggregators, have been mocked. Strategies and underlying vaults are included in the deployment to aid testing and analysis, but are outside the scope of this contest. Yields are mocked and generated on a regular basis. Bots are triggering Harvests any any other actions that are used to maintain the protocol. Mint functionality is open for all stable coins, and users are welcome to use and play around with the protocol. But if you want to do do an extensive amount of interactions with the protocol, such as large trades which may impact the balance of the Curve pool, we would kindly ask you to do so on a fork.
 
 _Call the faucet() method on the stablecoins to claim 10k coins per address._
 
- The following mocked contracts are used by the protocol on Kovan:
+ The following mocked contracts are used by the protocol on Ropsten:
 | Mocks                         | Address |
 |-------------------------------|------------------------------------------------------|
-| DAI	                        | [DAI, ''], |
-| USDC	                        | [USDC, ''], |
-| USDT	                        | [USDT, ''], |
-| Curve3Pool                    | [Curve3Pool, ''], |
-| 3Crv                          | [3Crv, ''], |
+| DAI	                        | [DAI, '0xBad346b9d0f4272DB9B01AA6F16761115B851277'], |
+| USDC	                        | [USDC, '0xa553CdA420072A759aC352DCa4CeC70709829614'], |
+| USDT	                        | [USDT, '0xed395510B7a2299f8049bcAcb6e9157213115564'], |
+| Curve3Pool                    | [Curve3Pool, '0x930e1D35BeF80A1FF7Cb70DcFf295Ed97D187c58'], |
+| 3Crv                          | [3Crv, '0xF92594660CAE88FC36C63d542266eA57575a08BC'], |
 
 
 The following external contracts are being used
 | External                         | Address |
 |-------------------------------|------------------------------------------------------|
-| DAI/USD Aggregator (Chainlink)| [DAIUSDAggregator, ''], |
-| USDC/USD Aggregator (Chainlink)| [USDCUSDAggregator, ''], |
-| USDT/USD Aggregator (Chainlink)| [USDTUSDAggregator, ''], |
+| DAI/USD Aggregator (Chainlink)| [DAIUSDAggregator, '0x1cE5b46220546276c3EA96e120F2071825a795a5'], |
+| USDC/USD Aggregator (Chainlink)| [USDCUSDAggregator, '0x78670902A9fb64d9F82BC9672c5FbF29c08ec29D'], |
+| USDT/USD Aggregator (Chainlink)| [USDTUSDAggregator, '0x182280A3A797EcD063de629C818aE392306a936D'], |
 
 
-The following contracts make up the core protocol on Kovan.
+The following contracts make up the core protocol on Ropsten.
 | Protocol                         | Address |
 |-------------------------------|------------------------------------------------------|
-| Controller| [Controller, ''], |
-| DepositHandler| [DepositHandler, ''], |
-| WithdrawHandler| [WithdrawHandler, ''], |
-| EmergencyHandler| [EmergencyHandler, ''], |
-| NonRebasingGToken| [NonRebasingGToken, ''], |
-| RebasingGToken | [RebasingGToken, ''], |
-| Insurance| [Insurance, ''], |
-| Exposure| [Exposure, ''], |
-| Allocation| [Allocation, ''], |
-| PnL| [PnL, ''], |
-| LifeGuard3Pool| [LifeGuard3Pool, ''], |
-| Buoy3Pool| [Buoy3Pool, ''], |
-| DaiVaultAdapter| [VaultAdaptorYearnV2_032, ''], |
-| UsdcVaultAdapter| [VaultAdaptorYearnV2_032, ''], |
-| UsdtVaultAdapter| [VaultAdaptorYearnV2_032, ''], |
-| 3CrvVaultAdapter| [VaultAdaptorYearnV2_032, ''], |
+| Controller| [Controller, '0x68b9c9FDb3068527902795478ba94cFCBcAD54eB'], |
+| DepositHandler| [DepositHandler, '0x2664ade9690c7bE579195e6736047C7B1d4eFe75'], |
+| WithdrawHandler| [WithdrawHandler, '0xFF7171221b1f4f1114c4780A294041a32E681BB4'], |
+| EmergencyHandler| [EmergencyHandler, '0x27CA4C8206D880058a04b283F9a35bf0aC418ECA'], |
+| Gvt| [NonRebasingGToken, '0xc54AA19fb77856395a0d6453670f866db87e91C2'], |
+| Pwrd | [RebasingGToken, '0xD74aA299e8cB8f5b4D8B81806c2868C89F060c80'], |
+| Insurance| [Insurance, '0xC7c03D9559653FC6F7E7Ea1D5F73Bac14d5bd206'], |
+| Exposure| [Exposure, '0x75d8Ef5782D1549AedBdEd854420B414a22C2636'], |
+| Allocation| [Allocation, '0xd24F8bA6721B89eF62032e6e7E9c740b95713Dd3'], |
+| PnL| [PnL, '0x191EE14f0F9fBE2234B761A7174fF607f2581483'], |
+| LifeGuard3Pool| [LifeGuard3Pool, '0xf0e15e317132EF1532DB80E60D7fcEB0661906A1'], |
+| Buoy3Pool| [Buoy3Pool, '0x6850fBF750793479085D50e09CBC121F483dcC9c'], |
+| DaiVaultAdapter| [VaultAdaptorYearnV2_032, '0x74CC72D5cc952633A30Fb914161913EEf40CE033'], |
+| UsdcVaultAdapter| [VaultAdaptorYearnV2_032, '0x32C4118c06443EB1df5D7620aC8Ea834133BDDEE'], |
+| UsdtVaultAdapter| [VaultAdaptorYearnV2_032, '0x66c683e96Fc9DeB0f9d887644d16F9cC05968343'], |
+| 3CrvVaultAdapter| [VaultAdaptorYearnV2_032, '0x3087EB044B737C7FB053151a68d20400D9b42651'], |
 
 
 

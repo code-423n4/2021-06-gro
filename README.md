@@ -209,12 +209,14 @@ A working instance of gro protocol has been deployed on Ropsten. All external co
 
 _Call the faucet() method on the stablecoins to claim 10k coins per address._
 
+[ropsten ETH faucet](https://faucet.ropsten.be/)
+
  The following mocked contracts are used by the protocol on Ropsten:
 | Mocks                         | Address |
 |-------------------------------|------------------------------------------------------|
-| DAI	                        | [DAI, '0xBad346b9d0f4272DB9B01AA6F16761115B851277'], |
-| USDC	                        | [USDC, '0xa553CdA420072A759aC352DCa4CeC70709829614'], |
-| USDT	                        | [USDT, '0xed395510B7a2299f8049bcAcb6e9157213115564'], |
+| DAI	                        | [DAI, '0xBad346b9d0f4272DB9B01AA6F16761115B851277'](https://ropsten.etherscan.io/address/0xBad346b9d0f4272DB9B01AA6F16761115B851277#writeContract), |
+| USDC	                        | [USDC, '0xa553CdA420072A759aC352DCa4CeC70709829614'](https://ropsten.etherscan.io/address/0xa553CdA420072A759aC352DCa4CeC70709829614#writeContract), |
+| USDT	                        | [USDT, '0xed395510B7a2299f8049bcAcb6e9157213115564'](https://ropsten.etherscan.io/address/0xed395510B7a2299f8049bcAcb6e9157213115564#writeContract), |
 | Curve3Pool                    | [Curve3Pool, '0x930e1D35BeF80A1FF7Cb70DcFf295Ed97D187c58'], |
 | 3Crv                          | [3Crv, '0xF92594660CAE88FC36C63d542266eA57575a08BC'], |
 
@@ -230,22 +232,22 @@ The following external contracts are being used
 The following contracts make up the core protocol on Ropsten.
 | Protocol                         | Address |
 |-------------------------------|------------------------------------------------------|
-| Controller| [Controller, '0x68b9c9FDb3068527902795478ba94cFCBcAD54eB'], |
-| DepositHandler| [DepositHandler, '0x2664ade9690c7bE579195e6736047C7B1d4eFe75'], |
-| WithdrawHandler| [WithdrawHandler, '0xFF7171221b1f4f1114c4780A294041a32E681BB4'], |
-| EmergencyHandler| [EmergencyHandler, '0x27CA4C8206D880058a04b283F9a35bf0aC418ECA'], |
-| Gvt| [NonRebasingGToken, '0xc54AA19fb77856395a0d6453670f866db87e91C2'], |
-| Pwrd | [RebasingGToken, '0xD74aA299e8cB8f5b4D8B81806c2868C89F060c80'], |
-| Insurance| [Insurance, '0xC7c03D9559653FC6F7E7Ea1D5F73Bac14d5bd206'], |
-| Exposure| [Exposure, '0x75d8Ef5782D1549AedBdEd854420B414a22C2636'], |
-| Allocation| [Allocation, '0xd24F8bA6721B89eF62032e6e7E9c740b95713Dd3'], |
-| PnL| [PnL, '0x191EE14f0F9fBE2234B761A7174fF607f2581483'], |
-| LifeGuard3Pool| [LifeGuard3Pool, '0xf0e15e317132EF1532DB80E60D7fcEB0661906A1'], |
-| Buoy3Pool| [Buoy3Pool, '0x6850fBF750793479085D50e09CBC121F483dcC9c'], |
-| DaiVaultAdapter| [VaultAdaptorYearnV2_032, '0x74CC72D5cc952633A30Fb914161913EEf40CE033'], |
-| UsdcVaultAdapter| [VaultAdaptorYearnV2_032, '0x32C4118c06443EB1df5D7620aC8Ea834133BDDEE'], |
-| UsdtVaultAdapter| [VaultAdaptorYearnV2_032, '0x66c683e96Fc9DeB0f9d887644d16F9cC05968343'], |
-| 3CrvVaultAdapter| [VaultAdaptorYearnV2_032, '0x3087EB044B737C7FB053151a68d20400D9b42651'], |
+| Controller| [Controller, '0xBA0E31cfED0e7B49Cc691c3019566C59a96c4c24'], |
+| DepositHandler| [DepositHandler, '0x4246529D7168FE98F0530d99d93d346092bf50F1'], |
+| WithdrawHandler| [WithdrawHandler, '0x50B325c2d97CfC88c79E051d2d2A9E3D9C0ac3A8'], |
+| EmergencyHandler| [EmergencyHandler, '0xBD420F52B153349cC003f6375653D7d69b11af29'], |
+| Gvt| [NonRebasingGToken, '0x4394be2135357833A9e18D5A73B2a0C629efE984'], |
+| Pwrd | [RebasingGToken, '0xCAdC58879f214a47Eb15B3Ac6eCfBdC29fb17F28'], |
+| Insurance| [Insurance, '0xc1658e21316123C5aF064C70B22Ee74beb022652'], |
+| Exposure| [Exposure, '0xB6D963744DD32297CB6cE8976dF347f945f20c6c'], |
+| Allocation| [Allocation, '0x02f214aA535f3280eD921A4000aED02b28491D1D'], |
+| PnL| [PnL, '0x6E50c4d3b3917a4aa4196F4F90C2533C2d2e1634'], |
+| LifeGuard3Pool| [LifeGuard3Pool, '0x5665e00A1fb8Df60d0DE11077D2971641D3c284c'], |
+| Buoy3Pool| [Buoy3Pool, '0xE524f817F06350EA6613AF7896f62AABE735c967'], |
+| DaiVaultAdapter| [VaultAdaptorYearnV2_032, '0xF239120f6197c289f662369dd1B1Bf236140f3Df'], |
+| UsdcVaultAdapter| [VaultAdaptorYearnV2_032, '0x1Af03157a5d3cC3c8FE02199090445b13dE99734'], |
+| UsdtVaultAdapter| [VaultAdaptorYearnV2_032, '0x2095213E61Cb34532923Aa11D2Bc6E4E63e7A188'], |
+| 3CrvVaultAdapter| [VaultAdaptorYearnV2_032, '0x1Fb3d9E038CF42e2c62fe6d9Ca82b1b197FC62a2'], |
 
 
 

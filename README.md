@@ -24,11 +24,9 @@ This repo will be made public before the start of the contest. (C4 delete this l
 | Sardine, Tuna, Whale| Deposit/Withdrawal sizes ranging from small to large |
 
 # Contest Scope
-
-This contest is open for two weeks to give wardens time to understand the protocol properly. Submissions can only be made in the second week of the contest. Representatives from gro will be available in the Code Arena Discord to answer any questions during the contest period. The focus for the contest is to try and find any logic errors or ways to drain funds from the protocol in a way that is advantageous for an attacker at the expense of users with funds invested in the protocol. We are NOT looking for gas savings in this contest. Wardens should assume that governance variables are set sensibly (unless they can find a way to change the value of a governance variable, and not counting social engineering approaches for this). 
+This contest is open for two weeks to give wardens time to understand the protocol properly. Submissions can only be made in the second week of the contest. Representatives from gro will be available in the Code Arena Discord to answer any questions during the contest period. The focus for the contest is to try and find any logic errors or ways to drain funds from the protocol in a way that is advantageous for an attacker at the expense of users with funds invested in the protocol. Wardens should assume that governance variables are set sensibly (unless they can find a way to change the value of a governance variable, and not counting social engineering approaches for this). 
 
 ## Protocol overview
-
 Gro protocol is a yield aggregator built on top of a tranche.
 
 The aim of gro protocol is to offer high yields for users who are willing to take on more risk, and a safer alternative for user who are risk averse. The protocol is able to do so by ensuring that any one of its portfolios exposures, be that to underlying assets or external defi protocols, are kept within a certain threshold.
@@ -50,7 +48,6 @@ The system will however try to mitigate this from happening by trying to balance
 This is all achieved by utilizing Curve as a swapping layer, meaning that the system can make decisions on what assets to move in and out independent of what assets the end user deposits/withdraws.
 
 ## Smart Contracts
-
 All the contracts in this section are to be reviewed. Any contracts not in this list are to be ignored for this contest.
 A further breakdown of [contracts and their dependencies can be found here](https://docs.google.com/spreadsheets/d/1iwl_WO95_x0lhU7ML5ejRdZ3PiLOWrygBvZJQRTurKc/edit?usp=sharing)
 
@@ -194,17 +191,15 @@ Immutable and constant variables used accorss the protocol. Divided into:
 	- Fixed Stablecoins (DAI, USDC, USDT)
 	- Fixed Vaults (gro protocol stablecoin vaults)
 
-### Additional notes on smart contracts
-[fill me in]
-
 ## Areas of concern
-[fill me in]
+We would like wardens to focus on any core functional logic, boundary case errors or similar issues which could be utilized by an attacker to take funds away from clients who have funds deposited in the protcol. That said any errors may be submitted by wardens for review and potential reward as per the noraml issue impact prioritization. Gas optimizations are welcome but not the main focus of this contest and thus at most 10% of the contest reward will be allocated to gas optimizations. For gas optimizations the most important flows are client deposit and withdrawal flows.
+
+If wardens are unclear on which areas to look at or which areas are important please feel free to ask in the contest Discord channel.
 
 ## Tests
 A full set of unit tests are provided in the repo.
 
 ## Testnet deployment
-
 A working instance of gro protocol has been deployed on Ropsten. All external contracts, with the exception of chain links aggregators, have been mocked. Strategies and underlying vaults are included in the deployment to aid testing and analysis, but are outside the scope of this contest. Yields are mocked and generated on a regular basis. Bots are triggering Harvests any any other actions that are used to maintain the protocol. Mint functionality is open for all stable coins, and users are welcome to use and play around with the protocol. But if you want to do do an extensive amount of interactions with the protocol, such as large trades which may impact the balance of the Curve pool, we would kindly ask you to do so on a fork.
 
 _Call the faucet() method on the stablecoins to claim 10k coins per address._

@@ -1,4 +1,3 @@
-
 # Gro Protocol contest details
 - $100,000 main award pot
 - Join [C4 Discord](https://discord.gg/EY5dvm3evD) to register
@@ -152,7 +151,8 @@ The insurance contract shouldn't need to be replaced, as any changes to the prot
 Allows the insurance module to calculate current exposure based on the current protocol setup
 
 #### Allocation.sol (186 sloc)
-Determines protocol stable coin stable coin, strategy allocations and thresholds based on the current protocol setup
+Determines protocol stable coin stable coin, strategy allocations and thresholds based on the current protocol setup. Protocol exposure targets
+are defined in the allocation contract
 
 #### PnL.sol (220 sloc)
 The Pnl contract holds logic to deal with system profit and loss -It holds a snapshot of latest tvl split between Gvt and Pwrd, and updates this value as deposits/withdrawal, gains/losses etc occur. The following action can impact the systems TvL: 
@@ -191,13 +191,77 @@ Immutable and constant variables used accorss the protocol. Divided into:
 	- Fixed Stablecoins (DAI, USDC, USDT)
 	- Fixed Vaults (gro protocol stablecoin vaults)
 
-## Areas of concern
-We would like wardens to focus on any core functional logic, boundary case errors or similar issues which could be utilized by an attacker to take funds away from clients who have funds deposited in the protcol. That said any errors may be submitted by wardens for review and potential reward as per the noraml issue impact prioritization. Gas optimizations are welcome but not the main focus of this contest and thus at most 10% of the contest reward will be allocated to gas optimizations. For gas optimizations the most important flows are client deposit and withdrawal flows.
+## Additional protocol information
+#### Pricing
+The protocol works with three stable coins, and relies on the curve 3pool in order to price these assets to a dollar value. The protocol uses the dollar value of its stable coin assets to determine TVL, gains/losses etc. 
+
+ - Curve prices are tightly checked whenever an interaction is done against curve. Cached prices are used to compare values of previous against current interactions to ensure that curves price hasnt been manipulated.
+ - Curves price is cached whenever strategies are harvested, this cached price is used as a reference point until the next time a strategy is harvested (Buoy3Pool.sol:updateRatios)
+ - 3 chainlink usd/stablecoin aggregators are used to sanity check curves price whenever a new price is cached.
+ 
+#### Profit and loss
+Profit and losses are kept track of in the PnL contract. The PnL contract holds the total dollar value locked in Gvt and Pwrd, which changes based on user interactions and system wide gains/losses. The protocol recognises three sources of profit/loss:
+ - User withdrawal fees
+	 - All withdrawals are subjected to 50 BP withdrawal fee, this fee is distributed to both Gvt and Pwrd holders
+ - Strategy Gains/losses
+	 -   Realized when the strategyHarvest function is called in a vaultAdaptor. If its a gain, it is distributed to pwrd and gvt holders based on the utilisation ratio. If it is a loss, it gets absorbed by Gvt.
+ - Price changes
+	 - The underlying price of the three stable coin assets fluctuate over time. While any deposit/withdrawal is done at curves current spot price, tvl for pwrd and gvt looses accuracy over time. To compensate for this,  the protocol determines the change in current tvl vs previous tvl during a harvest. Any potential gains/losses attributed to price changes only affects Gvt.
+
+#### User interaction
+User interaction start in either the deposit or withdraw handler. A user is treated differently depending on the size of the user and the type of interaction the user is doing, user interactions can be broken down in the following groups:
+
+#### Deposits:		 
+ - Sardines (small deposits)
+	 - A sardines deposit gets sent directly to the vault adapter, independently of what asset was deposited. 
+	 - The value of the deposit is estimated using curves calc_token_amount function, multiplied by the curve pool virtual price to get a dollar value. This value is used to determine how many token get minted to the user 
+ - Tunas (medium deposits)
+	 - For medium sized deposits, the system will perform a swap if the deposited assets corresponds to the protocol most over exposed asset
+	 - the swap will be from most overexposed to least exposed
+ - Whales (Large deposits)
+	 - The users deposited assets will be put into the curve 3 pool and withdrawn in a ratio that matches the protocols target allocations
+	 
+#### Withdrawals:	
+##### Single asset withdrawals:
+Withdrawals are divided into the same three sizes as deposits, and similarly determines if the protocol will pull out another assets and swap it into the users desired asset. Sardines being the simplest, pulling out assets from the vault adapter matching the desired asset directly. Tunas attempting to pull out of the least exposed vault adapter, but may pull from multiple vault adapters and perform swaps to match the users desired asset and whales pulling from all vault adapters, guaranteeing a swap into the users desired asset.
+##### balanced withdrawals
+Withdrawals also provide a cheaper alternative for larger withdrawals, where the user can withdraw a balanced set of assets, balanced being defined by the protocol as the difference between its current assets distribution, and its desired distribution. This Benefits the protocol immensely, as it helps keep the exposure rates stable, and also benefits the user by being significantly cheaper than doing a large single sided withdrawal as no swaps occur.
+
+#### Lifeguard skim logic
+On top of its 3 stable coin vaults, the protocol also leave a small amount of any larger deposit in the lifeguard any time assets pass through. Once there is a critical mass of assets in the lifeguard, these assets can be deposited into the curve3pool for 3Crv tokens, which in turn are invested into a 3crv vault. The logic for handling 3Crv tokens and curve exposure is different than the stable coins, as 3Crv create additional exposure towards all 3 stablecoins, so the protocol needs to regulate its curve exposure a bit more tightly.
+
+## Potential Protocol concerns
+#### Pricing oracle:
+ - Gro protocol relies on curve for pricing, historically we know that curve is easy to manipulate. In order to combat manipulation we utilize a cached of curve prices, which is compared to curve current spot price any time an interaction against curve is performed. The caching is attempted every time a harvest is run, the caching itself is sanity checked against chain link, and the cache is not updated if there is to large a difference between curves and chain links price. Even though we've taken precautions, this would likely be the most obvious attack vector
+#### Curve min amount
+ - When interacting with curve, we rely on the aforementioned price cache to not get sandwiched exposed to front running. Min amounts against curve interaction are generally set to 0, which could be another potential attack vector.
+
+## Areas of concern for Wardens
+We would like wardens to focus on any core functional logic, boundary case errors or similar issues which could be utilized by an attacker to take funds away from clients who have funds deposited in the protocol. That said any errors may be submitted by wardens for review and potential reward as per the normal issue impact prioritization. Gas optimizations are welcome but not the main focus of this contest and thus at most 10% of the contest reward will be allocated to gas optimizations. For gas optimizations the most important flows are client deposit and withdrawal flows.
 
 If wardens are unclear on which areas to look at or which areas are important please feel free to ask in the contest Discord channel.
 
 ## Tests
-A full set of unit tests are provided in the repo.
+A full set of unit tests are provided in the repo. To run these do the following:
+## Prepare local enviroment
+
+1. install `nodejs`, refer to [nodejs](https://nodejs.org/en/)
+2. install `yarn`, refer to [yarn](https://classic.yarnpkg.com/en/)
+3. install `vyper`, refer to [vyper](https://vyper.readthedocs.io/en/stable/installing-vyper.html)
+
+### install vyper for mac
+``` shell
+brew install pyenv
+echo -e 'if command -v pyenv 1>/dev/null 2>&1; then\n  eval "$(pyenv init -)"\nfi' >> ~/.bash_profile
+Restart shell
+pyenv install 3.6.12
+pyenv global 3.6.12
+pip3 install vyper
+```
+
+1. run `yarn install` in workspace root folder
+2. run `npx hardhat test` command in terminal
+
 
 ## Testnet deployment
 A working instance of gro protocol has been deployed on Ropsten. All external contracts, with the exception of chain links aggregators, have been mocked. Strategies and underlying vaults are included in the deployment to aid testing and analysis, but are outside the scope of this contest. Yields are mocked and generated on a regular basis. Bots are triggering Harvests any any other actions that are used to maintain the protocol. Mint functionality is open for all stable coins, and users are welcome to use and play around with the protocol. But if you want to do do an extensive amount of interactions with the protocol, such as large trades which may impact the balance of the Curve pool, we would kindly ask you to do so on a fork.
@@ -243,6 +307,3 @@ The following contracts make up the core protocol on Ropsten.
 | UsdcVaultAdapter| [VaultAdaptorYearnV2_032, '0x1Af03157a5d3cC3c8FE02199090445b13dE99734'], |
 | UsdtVaultAdapter| [VaultAdaptorYearnV2_032, '0x2095213E61Cb34532923Aa11D2Bc6E4E63e7A188'], |
 | 3CrvVaultAdapter| [VaultAdaptorYearnV2_032, '0x1Fb3d9E038CF42e2c62fe6d9Ca82b1b197FC62a2'], |
-
-
-

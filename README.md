@@ -1,7 +1,7 @@
 # Gro Protocol contest details
 - $100,000 main award pot
 - Join [C4 Discord](https://discord.gg/EY5dvm3evD) to register
-- Submit findings [using the C4 form](https://[--NEED LINK--)
+- Submit findings [using the C4 form](https://code423n4.com/2021-06-gro-contest/submit)
 - [Read our guidelines for more details](https://docs.code4rena.com/roles/wardens)
 - Preview starts June 24 00:00 UTC (no submissions accepted)
 - Preview ends June 30 23:59 UTC

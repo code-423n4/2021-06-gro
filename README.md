@@ -152,7 +152,7 @@ Allows the insurance module to calculate current exposure based on the current p
 
 #### Allocation.sol (186 sloc)
 Determines protocol stable coin stable coin, strategy allocations and thresholds based on the current protocol setup. Protocol exposure targets
-are defined in the allocation contract
+are defined in the allocation Insurance.
 
 #### PnL.sol (220 sloc)
 The Pnl contract holds logic to deal with system profit and loss -It holds a snapshot of latest tvl split between Gvt and Pwrd, and updates this value as deposits/withdrawal, gains/losses etc occur. The following action can impact the systems TvL: 

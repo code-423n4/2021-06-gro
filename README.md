@@ -74,7 +74,7 @@ Contract handling user Deposits, responsible for:
   - Determining Deposit logic path [small, large]
   - Transferring tokens from user to protocol
 
-#### EmergencyHandler.sol (94 sloc each)
+#### EmergencyHandler.sol (94 sloc each) (Not in scope)
 Alternate withdrawal logic, used in case of curve being compromised, or in the case of the failure of a stablecoin.
 
 ### Tokens [Diagrams](https://drive.google.com/file/d/1EVWhZYTtLGddp3SZFT8-ZpvunYClCVEj/view?usp=sharing)
@@ -294,7 +294,6 @@ The following contracts make up the core protocol on Ropsten.
 | Controller| [Controller, '0xBA0E31cfED0e7B49Cc691c3019566C59a96c4c24'], |
 | DepositHandler| [DepositHandler, '0x4246529D7168FE98F0530d99d93d346092bf50F1'], |
 | WithdrawHandler| [WithdrawHandler, '0x50B325c2d97CfC88c79E051d2d2A9E3D9C0ac3A8'], |
-| EmergencyHandler| [EmergencyHandler, '0xBD420F52B153349cC003f6375653D7d69b11af29'], |
 | Gvt| [NonRebasingGToken, '0x4394be2135357833A9e18D5A73B2a0C629efE984'], |
 | Pwrd | [RebasingGToken, '0xCAdC58879f214a47Eb15B3Ac6eCfBdC29fb17F28'], |
 | Insurance| [Insurance, '0xc1658e21316123C5aF064C70B22Ee74beb022652'], |

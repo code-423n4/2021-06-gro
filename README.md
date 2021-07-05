@@ -130,6 +130,7 @@ The Buoy acts as the protocol pricing oracle, and is responsible for providing p
 	- Provides prices for rest of protocol
 	- Sanity checks Curve prices against historical pricing points
 	- Sanity checks Curve against Chainlinks aggregators 
+!note - The sanity check paramter has been dialed up on kovan to ensure that no transaction get blocked when comparing our mocked 3pool vs chainlink oracle, as the mocked 3pool doesnt experience the natural arb. that the real 3pool would experience.
 
 ### Insurance [Diagrams](https://drive.google.com/file/d/1Az4ThISghdIYcbgo6pYWjRqZ_PjLpaFr/view?usp=sharing)
 The insurance module is responsible for the system's overall health. It provides functionality for establishing current exposure, and allows the system to route deposits and withdrawals to the correct target vaults. The main insurance functionality is supported by two contracts, allocation and exposure; these are replaceable contracts and act as individual strategies that are depending on the current protocol exposures in the system.

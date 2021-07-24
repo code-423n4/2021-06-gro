@@ -8,8 +8,6 @@
 - Contest Starts July 1 00:00 UTC
 - Contest Ends July 7 23:59 UTC
 
-This repo will be made public before the start of the contest. (C4 delete this line when made public)
-
 
 | Glossary| |
 |-------------------------------|------------------------------------------------------|
